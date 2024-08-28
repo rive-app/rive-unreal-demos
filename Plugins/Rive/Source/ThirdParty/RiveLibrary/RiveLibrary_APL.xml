@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rive Library plugin additions-->
+<root xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- init section is always evaluated once per architecture -->
+    <init>
+    </init>
+    <!-- optional files or directories to copy to Intermediate/Android/APK -->
+    <resourceCopies>
+    </resourceCopies>
+
+    <uses-feature android:glEsVersion="0x00030002" android:required="true" />
+    <uses-feature android:name="android.hardware.opengles.aep" android:required="true" />
+
+    <!-- optional libraries to load in GameActivity.java before libUE4.so -->
+    <soLoadLibrary>
+    </soLoadLibrary>
+</root>
