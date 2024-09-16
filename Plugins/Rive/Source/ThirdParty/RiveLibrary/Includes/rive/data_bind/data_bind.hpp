@@ -10,6 +10,10 @@
 #include <stdio.h>
 namespace rive
 {
+#ifdef WITH_RIVE_TOOLS
+class DataBind;
+typedef void (*DataBindChanged)();
+#endif
 class DataBind : public DataBindBase
 {
 public:
@@ -33,6 +37,11 @@ protected:
     std::unique_ptr<DataBindContextValue> m_ContextValue;
     DataConverter* m_dataConverter;
     DataType outputType();
+#ifdef WITH_RIVE_TOOLS
+public:
+    void onChanged(DataBindChanged callback) { m_changedCallback = callback; }
+    DataBindChanged m_changedCallback = nullptr;
+#endif
 };
 } // namespace rive
 

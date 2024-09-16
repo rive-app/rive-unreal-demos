@@ -44,7 +44,7 @@ class SMINumber;
 class SMITrigger;
 
 #ifdef WITH_RIVE_TOOLS
-typedef void (*ArtboardCallback)(Artboard*);
+typedef void (*ArtboardCallback)(void*);
 #endif
 
 class Artboard : public ArtboardBase, public CoreContext
@@ -138,6 +138,7 @@ public:
 
     void* takeLayoutNode();
     bool syncStyleChanges();
+    bool canHaveOverrides() override { return true; }
 
     bool advance(double elapsedSeconds, bool nested = true);
     bool advanceInternal(double elapsedSeconds, bool isRoot, bool nested = true);
@@ -162,6 +163,7 @@ public:
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
     const std::vector<DataBind*> dataBinds() const { return m_DataBinds; }
+    const std::vector<DataBind*> allDataBinds() const { return m_AllDataBinds; }
     DataContext* dataContext() { return m_DataContext; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
@@ -189,6 +191,8 @@ public:
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds(std::vector<DataBind*> dataBinds);
+    void collectDataBinds();
+
     bool hasAudio() const;
 
     template <typename T = Component> T* find(const std::string& name)
@@ -372,6 +376,7 @@ private:
     ArtboardCallback m_layoutDirtyCallback = nullptr;
 
 public:
+    void* callbackUserData;
     void onLayoutChanged(ArtboardCallback callback) { m_layoutChangedCallback = callback; }
     void onLayoutDirty(ArtboardCallback callback) { m_layoutDirtyCallback = callback; }
 #endif
@@ -407,6 +412,7 @@ public:
     SMIBool* getBool(const std::string& name, const std::string& path);
     SMINumber* getNumber(const std::string& name, const std::string& path);
     SMITrigger* getTrigger(const std::string& name, const std::string& path);
+    TextValueRun* getTextRun(const std::string& name, const std::string& path);
 };
 } // namespace rive
 
