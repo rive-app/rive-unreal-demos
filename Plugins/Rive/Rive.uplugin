@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "0.1.14",
+	"VersionName": "1.0",
 	"FriendlyName": "Rive",
 	"Description": "A Unreal Engine runtime library for Rive.",
 	"Category": "Rive",
@@ -10,42 +10,28 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "https://rive.atlassian.net/servicedesk/customer/portals",
-	"EngineVersion": "5.4.0",
 	"CanContainContent": true,
-	"Installed": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
 	"Modules": [
 		{
 			"Name": "Rive",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [
-				"Win64",
-				"Mac",
-				"IOS",
-				"Android"
-			]
+			"WhitelistPlatforms": ["Win64", "Mac", "IOS", "Android"]
 		},
 		{
 			"Name": "RiveRenderer",
 			"Type": "RuntimeNoCommandlet",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64",
-				"Mac",
-				"IOS",
-				"Android"
-			]
+			"WhitelistPlatforms": ["Win64", "Mac", "IOS", "Android"]
 		},
 		{
 			"Name": "RiveEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [
-				"Win64",
-				"Mac",
-				"IOS",
-				"Android"
-			]
+			"WhitelistPlatforms": ["Win64", "Mac", "IOS", "Android"]
 		}
 	]
 }

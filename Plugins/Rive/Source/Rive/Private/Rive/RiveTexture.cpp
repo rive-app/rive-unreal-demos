@@ -12,7 +12,7 @@
 
 URiveTexture::URiveTexture()
 {
-    SRGB = true;
+    SRGB = false;
 
 #if PLATFORM_ANDROID
 	Format = PF_R8G8B8A8_SNORM;
@@ -133,8 +133,7 @@ void URiveTexture::InitializeResources() const
 
 		FRHITextureCreateDesc RenderTargetTextureDesc =
 			FRHITextureCreateDesc::Create2D(*DebugName, Size.X, Size.Y, Format)
-				.SetClearValue(FClearValueBinding(FLinearColor(0.0f, 0.0f, 0.0f)))
-				.SetFlags(ETextureCreateFlags::Dynamic | ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
+				.SetFlags(ETextureCreateFlags::UAV | ETextureCreateFlags::Dynamic | ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
 
 #if !(PLATFORM_IOS || PLATFORM_MAC) //SRGB could hvae been manually overriden
 		if (SRGB)

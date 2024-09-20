@@ -11,10 +11,17 @@ THIRD_PARTY_INCLUDES_START
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/MinWindows.h"
 #include "rive/renderer/d3d/render_context_d3d_impl.hpp" // This ends up including windows.h 
+#include "rive/renderer/d3d/render_context_d3d_impl.hpp" // This ends up including windows.h 
 #include "Windows/HideWindowsPlatformTypes.h"
 THIRD_PARTY_INCLUDES_END
 
 struct ID3D11DynamicRHI;
+
+namespace rive::gpu
+{
+	class RenderTargetD3D;
+	class RenderContextD3DImpl;
+}
 
 #endif // WITH_RIVE
 
