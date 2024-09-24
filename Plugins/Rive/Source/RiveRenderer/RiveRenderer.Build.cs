@@ -36,11 +36,13 @@ public class RiveRenderer : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
                 "RHI",
 				"RenderCore",
 				"Renderer",
 				"RiveLibrary",
+				"ImageWrapper"
 			}
 		);
 		
