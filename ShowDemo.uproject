@@ -29,6 +29,10 @@
 		{
 			"Name": "Rive",
 			"Enabled": true
+		},
+		{
+			"Name": "HDRIBackdrop",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [

@@ -90,7 +90,7 @@ public:
     UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = Rive)
     FRiveDescriptor DefaultRiveDescriptor;
     
-    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Rive, meta = (ClampMin = 1, UIMin = 1, ClampMax = 3840, UIMax = 3840))
+    UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Rive, meta = (ClampMin = 1, UIMin = 1, ClampMax = 16000, UIMax = 16000))
     FIntPoint Size;
     
     UPROPERTY(BlueprintReadWrite, SkipSerialization, Transient, Category=Rive)

@@ -11,8 +11,8 @@ class URiveArtboard;
 class FRiveTextureResource;
 
 #define RIVE_MIN_TEX_RESOLUTION 1
-#define RIVE_MAX_TEX_RESOLUTION 3840
-#define RIVE_STANDARD_TEX_RESOLUTION 3840
+#define RIVE_MAX_TEX_RESOLUTION 16000
+#define RIVE_STANDARD_TEX_RESOLUTION 16000
 
 /**
  * 
@@ -37,7 +37,7 @@ public:
 
 public:
 	/** UI representation of Texture Size */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Rive, meta = (ClampMin = 1, UIMin = 1, ClampMax = 3840, UIMax = 3840, NoResetToDefault))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Rive, meta = (ClampMin = 1, UIMin = 1, ClampMax = 16000, UIMax = 16000, NoResetToDefault))
 	FIntPoint Size;
 	
 	/**
