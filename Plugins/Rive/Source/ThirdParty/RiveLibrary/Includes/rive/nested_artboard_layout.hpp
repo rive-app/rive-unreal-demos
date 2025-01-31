@@ -12,11 +12,13 @@ public:
 #endif
     Core* clone() const override;
     void markNestedLayoutDirty();
+    void markLayoutNodeDirty();
     void update(ComponentDirt value) override;
     StatusCode onAddedClean(CoreContext* context) override;
 
     float actualInstanceWidth();
     float actualInstanceHeight();
+    void updateLayoutBounds(bool animate);
 
 protected:
     void instanceWidthChanged() override;

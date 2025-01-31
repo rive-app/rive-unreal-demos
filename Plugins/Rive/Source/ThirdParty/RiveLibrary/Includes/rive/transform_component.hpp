@@ -11,7 +11,8 @@ namespace rive
 class Constraint;
 class WorldTransformComponent;
 class AABB;
-class TransformComponent : public TransformComponentBase, public IntrinsicallySizeable
+class TransformComponent : public TransformComponentBase,
+                           public IntrinsicallySizeable
 {
 protected:
     Mat2D m_Transform;
@@ -20,11 +21,14 @@ protected:
     std::vector<Constraint*> m_Constraints;
 
 protected:
-    void updateConstraints();
+    virtual void updateConstraints();
 
 public:
     bool collapse(bool value) override;
-    const std::vector<Constraint*>& constraints() const { return m_Constraints; }
+    const std::vector<Constraint*>& constraints() const
+    {
+        return m_Constraints;
+    }
     StatusCode onAddedClean(CoreContext* context) override;
     void buildDependencies() override;
     void update(ComponentDirt value) override;

@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_TRANSITION_HPP_
 #define _RIVE_STATE_TRANSITION_HPP_
-#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/state_transition_flags.hpp"
 #include "rive/generated/animation/state_transition_base.hpp"
 #include <stdio.h>
@@ -14,6 +14,7 @@ class StateTransitionImporter;
 class TransitionCondition;
 class StateInstance;
 class StateMachineInstance;
+class StateMachineLayerInstance;
 class LinearAnimation;
 class LinearAnimationInstance;
 
@@ -36,7 +37,7 @@ private:
     }
     LayerState* m_StateTo = nullptr;
     uint32_t m_EvaluatedRandomWeight = 1;
-    CubicInterpolator* m_Interpolator = nullptr;
+    KeyFrameInterpolator* m_Interpolator = nullptr;
 
     std::vector<TransitionCondition*> m_Conditions;
     void addCondition(TransitionCondition* condition);
@@ -44,10 +45,16 @@ private:
 public:
     ~StateTransition() override;
     const LayerState* stateTo() const { return m_StateTo; }
-    inline CubicInterpolator* interpolator() const { return m_Interpolator; }
+    inline KeyFrameInterpolator* interpolator() const { return m_Interpolator; }
 
-    inline uint32_t evaluatedRandomWeight() const { return m_EvaluatedRandomWeight; }
-    void evaluatedRandomWeight(uint32_t value) { m_EvaluatedRandomWeight = value; }
+    inline uint32_t evaluatedRandomWeight() const
+    {
+        return m_EvaluatedRandomWeight;
+    }
+    void evaluatedRandomWeight(uint32_t value)
+    {
+        m_EvaluatedRandomWeight = value;
+    }
 
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
@@ -64,7 +71,7 @@ public:
     /// stateFrom with the given inputs.
     AllowTransition allowed(StateInstance* stateFrom,
                             StateMachineInstance* stateMachineInstance,
-                            bool ignoreTriggers) const;
+                            StateMachineLayerInstance* layerInstance) const;
 
     /// Whether the animation is held at exit or if it keeps advancing
     /// during mixing.
@@ -110,7 +117,8 @@ public:
     /// true if you want the returned time to be relative to the entire
     /// animation. Set absolute to false if you want it relative to the work
     /// area.
-    float exitTimeSeconds(const LayerState* stateFrom, bool absolute = false) const;
+    float exitTimeSeconds(const LayerState* stateFrom,
+                          bool absolute = false) const;
 
     /// Provide the animation instance to use for computing percentage
     /// durations for exit time.
@@ -119,12 +127,17 @@ public:
 
     /// Provide the animation to use for computing percentage durations for
     /// exit time.
-    virtual const LinearAnimation* exitTimeAnimation(const LayerState* from) const;
+    virtual const LinearAnimation* exitTimeAnimation(
+        const LayerState* from) const;
 
     /// Retruns true when we need to hold the exit time, also applies the
     /// correct time to the animation instance in the stateFrom, when
     /// applicable (when it's an AnimationState).
     bool applyExitCondition(StateInstance* stateFrom) const;
+
+    /// Marks any trigger based condition as used for this layer
+    void useLayerInConditions(StateMachineInstance* stateMachineInstance,
+                              StateMachineLayerInstance* layerInstance) const;
 };
 } // namespace rive
 

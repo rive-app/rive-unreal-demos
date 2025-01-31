@@ -16,6 +16,11 @@ class Image : public ImageBase, public FileAssetReferencer
 {
 private:
     MeshDrawable* m_Mesh = nullptr;
+    // Since layouts only pass down width/height we store those
+    // and use the image width/height to compute the proper scale
+    float m_layoutWidth = NAN;
+    float m_layoutHeight = NAN;
+    void updateImageScale();
 
 public:
     void setMesh(MeshDrawable* mesh);
@@ -30,9 +35,12 @@ public:
                         LayoutMeasureMode widthMode,
                         float height,
                         LayoutMeasureMode heightMode) override;
-    void controlSize(Vec2D size) override;
+    void controlSize(Vec2D size,
+                     LayoutScaleType widthScaleType,
+                     LayoutScaleType heightScaleType) override;
     float width() const;
     float height() const;
+    void assetUpdated() override;
 
 #ifdef TESTING
     Mesh* mesh() const;

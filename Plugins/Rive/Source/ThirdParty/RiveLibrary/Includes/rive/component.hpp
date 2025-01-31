@@ -29,9 +29,13 @@ public:
     DependencyHelper<Artboard, Component> m_DependencyHelper;
     virtual bool collapse(bool value);
     inline Artboard* artboard() const { return m_Artboard; }
+    bool validate(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     inline ContainerComponent* parent() const { return m_Parent; }
-    const std::vector<Component*>& dependents() const { return m_DependencyHelper.dependents(); }
+    const std::vector<Component*>& dependents() const
+    {
+        return m_DependencyHelper.dependents();
+    }
 
     void addDependent(Component* component);
 
@@ -45,7 +49,10 @@ public:
 
     unsigned int graphOrder() const { return m_GraphOrder; }
     bool addDirt(ComponentDirt value, bool recurse = false);
-    inline bool hasDirt(ComponentDirt flag) const { return (m_Dirt & flag) == flag; }
+    inline bool hasDirt(ComponentDirt flag) const
+    {
+        return (m_Dirt & flag) == flag;
+    }
     static inline bool hasDirt(ComponentDirt value, ComponentDirt flag)
     {
         return (value & flag) != ComponentDirt::None;
@@ -53,7 +60,7 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    bool isCollapsed() const
+    virtual bool isCollapsed() const
     {
         return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
     }

@@ -11,7 +11,10 @@
 
 namespace glutils
 {
-void CompileAndAttachShader(GLuint program, GLenum type, const char* source, const GLCapabilities&);
+void CompileAndAttachShader(GLuint program,
+                            GLenum type,
+                            const char* source,
+                            const GLCapabilities&);
 
 void CompileAndAttachShader(GLuint program,
                             GLenum type,
@@ -21,7 +24,9 @@ void CompileAndAttachShader(GLuint program,
                             size_t numSources,
                             const GLCapabilities&);
 
-[[nodiscard]] GLuint CompileShader(GLuint type, const char* source, const GLCapabilities&);
+[[nodiscard]] GLuint CompileShader(GLuint type,
+                                   const char* source,
+                                   const GLCapabilities&);
 
 [[nodiscard]] GLuint CompileShader(GLuint type,
                                    const char* defines[],
@@ -159,7 +164,9 @@ public:
     }
     ~Program() { reset(0); }
 
-    void compileAndAttachShader(GLenum type, const char* source, const GLCapabilities& capabilities)
+    void compileAndAttachShader(GLenum type,
+                                const char* source,
+                                const GLCapabilities& capabilities)
     {
         compileAndAttachShader(type, nullptr, 0, &source, 1, capabilities);
     }
@@ -188,4 +195,6 @@ void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter);
 void BlitFramebuffer(rive::IAABB bounds,
                      uint32_t renderTargetHeight,
                      GLbitfield mask = GL_COLOR_BUFFER_BIT);
+
+void Uniform1iByName(GLuint programID, const char* name, GLint value);
 } // namespace glutils

@@ -1,9 +1,10 @@
 #pragma once
 #define USING_PLS_STORAGE_TEXTURES 1
-#define ENABLE_TYPED_UAV_LOAD_STORE 1
-#define USE_GENERATED_UNIFORMS 1
+#define UNIFORM_DEFINITIONS_AUTO_GENERATED 1
 #define OPTIONALLY_FLAT flat
 
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
 #include "Generated/constants.minified.ush"

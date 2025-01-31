@@ -13,7 +13,8 @@ class NestedEventListener
 {
 public:
     virtual ~NestedEventListener() {}
-    virtual void notify(const std::vector<EventReport>& events, NestedArtboard* context) = 0;
+    virtual void notify(const std::vector<EventReport>& events,
+                        NestedArtboard* context) = 0;
 };
 
 class NestedEventNotifier
@@ -28,9 +29,15 @@ public:
     {
         m_nestedEventListeners.push_back(listener);
     }
-    std::vector<NestedEventListener*> nestedEventListeners() { return m_nestedEventListeners; }
+    std::vector<NestedEventListener*> nestedEventListeners()
+    {
+        return m_nestedEventListeners;
+    }
 
-    void setNestedArtboard(NestedArtboard* artboard) { m_nestedArtboard = artboard; }
+    void setNestedArtboard(NestedArtboard* artboard)
+    {
+        m_nestedArtboard = artboard;
+    }
     NestedArtboard* nestedArtboard() { return m_nestedArtboard; }
 
     void notifyListeners(const std::vector<Event*>& events)
@@ -54,10 +61,11 @@ private:
 class NestedAnimation : public NestedAnimationBase
 {
 public:
+    bool validate(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 
     // Advance animations and apply them to the artboard.
-    virtual bool advance(float elapsedSeconds) = 0;
+    virtual bool advance(float elapsedSeconds, bool newFrame) = 0;
 
     // Initialize the animation (make instances as necessary) from the
     // source artboard.

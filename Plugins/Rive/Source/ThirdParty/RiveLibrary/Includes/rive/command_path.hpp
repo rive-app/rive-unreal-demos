@@ -20,10 +20,16 @@ public:
 
     virtual void moveTo(float x, float y) = 0;
     virtual void lineTo(float x, float y) = 0;
-    virtual void cubicTo(float ox, float oy, float ix, float iy, float x, float y) = 0;
+    virtual void cubicTo(float ox,
+                         float oy,
+                         float ix,
+                         float iy,
+                         float x,
+                         float y) = 0;
     virtual void close() = 0;
 
     virtual RenderPath* renderPath() = 0;
+    virtual const RenderPath* renderPath() const = 0;
 
     // non-virtual helpers
 
@@ -38,7 +44,10 @@ public:
 
     void move(Vec2D v) { this->moveTo(v.x, v.y); }
     void line(Vec2D v) { this->lineTo(v.x, v.y); }
-    void cubic(Vec2D a, Vec2D b, Vec2D c) { this->cubicTo(a.x, a.y, b.x, b.y, c.x, c.y); }
+    void cubic(Vec2D a, Vec2D b, Vec2D c)
+    {
+        this->cubicTo(a.x, a.y, b.x, b.y, c.x, c.y);
+    }
 };
 } // namespace rive
 #endif

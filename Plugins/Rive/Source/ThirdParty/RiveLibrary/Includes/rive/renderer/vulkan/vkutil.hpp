@@ -23,7 +23,11 @@ inline static void vk_check(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
-        fprintf(stderr, "Vulkan error %i at line: %i in file: %s\n", res, line, file);
+        fprintf(stderr,
+                "Vulkan error %i at line: %i in file: %s\n",
+                res,
+                line,
+                file);
         abort();
     }
 }
@@ -37,9 +41,10 @@ constexpr static uint32_t kVendorARM = 0x13B5;
 constexpr static uint32_t kVendorQualcomm = 0x5143;
 constexpr static uint32_t kVendorINTEL = 0x8086;
 
+constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
-    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-    VK_COLOR_COMPONENT_A_BIT;
+    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 enum class Mappability
 {
@@ -76,7 +81,8 @@ private:
 template <typename T> struct ZombieResource
 {
     ZombieResource(T* resource_, uint64_t lastFrameUsed) :
-        resource(resource_), expirationFrameIdx(lastFrameUsed + gpu::kBufferRingSize)
+        resource(resource_),
+        expirationFrameIdx(lastFrameUsed + gpu::kBufferRingSize)
     {
         assert(resource_->debugging_refcnt() == 0);
     }
@@ -106,7 +112,15 @@ public:
         return m_contents;
     }
 
-    void flushMappedContents(size_t updatedSizeInBytes);
+    // Calls through to vkFlushMappedMemoryRanges().
+    // Called after modifying contents() with the CPU. Makes those modifications
+    // available to the GPU.
+    void flushContents(size_t sizeInBytes = VK_WHOLE_SIZE);
+
+    // Calls through to vkInvalidateMappedMemoryRanges().
+    // Called after modifying the buffer with the GPU. Makes those modifications
+    // available to the CPU via contents().
+    void invalidateContents(size_t sizeInBytes = VK_WHOLE_SIZE);
 
 private:
     friend class ::rive::gpu::VulkanContext;
@@ -122,24 +136,6 @@ private:
     void* m_contents;
 };
 
-// RAII utility to call flushMappedContents() on a buffer when the class goes out
-// of scope.
-class ScopedBufferFlush
-{
-public:
-    ScopedBufferFlush(Buffer& buff, size_t mapSizeInBytes = VK_WHOLE_SIZE) :
-        m_buff(buff), m_mapSizeInBytes(mapSizeInBytes)
-    {}
-    ~ScopedBufferFlush() { m_buff.flushMappedContents(m_mapSizeInBytes); }
-
-    operator void*() { return m_buff.contents(); }
-    template <typename T> T as() { return reinterpret_cast<T>(m_buff.contents()); }
-
-private:
-    Buffer& m_buff;
-    const size_t m_mapSizeInBytes;
-};
-
 // Wraps a ring of VkBuffers so we can map one while other(s) are in-flight.
 class BufferRing
 {
@@ -148,7 +144,10 @@ public:
 
     size_t size() const { return m_targetSize; }
 
-    VkBuffer vkBufferAt(int bufferRingIdx) const { return *m_buffers[bufferRingIdx]; }
+    VkBuffer vkBufferAt(int bufferRingIdx) const
+    {
+        return *m_buffers[bufferRingIdx];
+    }
 
     const VkBuffer* vkBufferAtAddressOf(int bufferRingIdx) const
     {
@@ -158,7 +157,7 @@ public:
     void setTargetSize(size_t size);
     void synchronizeSizeAt(int bufferRingIdx);
     void* contentsAt(int bufferRingIdx, size_t dirtySize = VK_WHOLE_SIZE);
-    void flushMappedContentsAt(int bufferRingIdx);
+    void flushContentsAt(int bufferRingIdx);
 
 private:
     size_t m_targetSize;
@@ -249,7 +248,8 @@ private:
 };
 
 template <size_t Size>
-void set_shader_code(VkShaderModuleCreateInfo& info, const uint32_t (&code)[Size])
+void set_shader_code(VkShaderModuleCreateInfo& info,
+                     const uint32_t (&code)[Size])
 {
     info.codeSize = sizeof(code);
     info.pCode = code;
@@ -274,7 +274,7 @@ void set_shader_code_if_then_else(VkShaderModuleCreateInfo& info,
 inline VkClearColorValue color_clear_rgba32f(ColorInt riveColor)
 {
     VkClearColorValue ret;
-    UnpackColorToRGBA32F(riveColor, ret.float32);
+    UnpackColorToRGBA32FPremul(riveColor, ret.float32);
     return ret;
 }
 

@@ -4,11 +4,16 @@
 #include "rive/generated/assets/image_asset_base.hpp"
 #include "rive/renderer.hpp"
 #include "rive/simple_array.hpp"
+#include <functional>
 #include <string>
 
 namespace rive
 {
 class ImageAsset : public ImageAssetBase
+#if defined(__EMSCRIPTEN__)
+    ,
+                   public RenderImageDelegate
+#endif
 {
 private:
     rcp<RenderImage> m_RenderImage;
@@ -24,6 +29,9 @@ public:
     std::string fileExtension() const override;
     RenderImage* renderImage() const { return m_RenderImage.get(); }
     void renderImage(rcp<RenderImage> renderImage);
+#if defined(__EMSCRIPTEN__)
+    void decodedAsync() override;
+#endif
 };
 } // namespace rive
 

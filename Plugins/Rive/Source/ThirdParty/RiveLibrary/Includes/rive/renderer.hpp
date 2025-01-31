@@ -24,8 +24,13 @@ namespace rive
 {
 class Vec2D;
 
-// Helper that computes a matrix to "align" content (source) to fit inside frame (destination).
-Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
+// Helper that computes a matrix to "align" content (source) to fit inside frame
+// (destination).
+Mat2D computeAlignment(Fit,
+                       Alignment,
+                       const AABB& frame,
+                       const AABB& content,
+                       const float scaleFactor = 1.0f);
 
 enum class RenderBufferType
 {
@@ -36,12 +41,14 @@ enum class RenderBufferType
 enum class RenderBufferFlags
 {
     none = 0,
-    mappedOnceAtInitialization = 1 << 0, // The client will map the buffer exactly one time, before
-                                         // rendering, and will never update it again.
+    mappedOnceAtInitialization =
+        1 << 0, // The client will map the buffer exactly one time, before
+                // rendering, and will never update it again.
 };
 RIVE_MAKE_ENUM_BITSET(RenderBufferFlags)
 
-class RenderBuffer : public RefCnt<RenderBuffer>, public enable_lite_rtti<RenderBuffer>
+class RenderBuffer : public RefCnt<RenderBuffer>,
+                     public ENABLE_LITE_RTTI(RenderBuffer)
 {
 public:
     RenderBuffer(RenderBufferType, RenderBufferFlags, size_t sizeInBytes);
@@ -91,16 +98,19 @@ enum class RenderPaintStyle
  *  Shaders are immutable, and sharable between multiple paints, etc.
  *
  *  It is common that a shader may be created with a 'localMatrix'. If this is
- *  not null, then it is applied to the shader's domain before the Renderer's CTM.
+ *  not null, then it is applied to the shader's domain before the Renderer's
+ * CTM.
  */
-class RenderShader : public RefCnt<RenderShader>, public enable_lite_rtti<RenderShader>
+class RenderShader : public RefCnt<RenderShader>,
+                     public ENABLE_LITE_RTTI(RenderShader)
 {
 public:
     RenderShader();
     virtual ~RenderShader();
 };
 
-class RenderPaint : public RefCnt<RenderPaint>, public enable_lite_rtti<RenderPaint>
+class RenderPaint : public RefCnt<RenderPaint>,
+                    public ENABLE_LITE_RTTI(RenderPaint)
 {
 public:
     RenderPaint();
@@ -111,12 +121,22 @@ public:
     virtual void thickness(float value) = 0;
     virtual void join(StrokeJoin value) = 0;
     virtual void cap(StrokeCap value) = 0;
+    virtual void feather(float value) {} // Not supported on all renderers.
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;
 };
 
-class RenderImage : public RefCnt<RenderImage>, public enable_lite_rtti<RenderImage>
+#if defined(__EMSCRIPTEN__)
+class RenderImageDelegate
+{
+public:
+    virtual void decodedAsync() = 0;
+};
+#endif
+
+class RenderImage : public RefCnt<RenderImage>,
+                    public ENABLE_LITE_RTTI(RenderImage)
 {
 protected:
     int m_Width = 0;
@@ -131,21 +151,47 @@ public:
     int width() const { return m_Width; }
     int height() const { return m_Height; }
     const Mat2D& uvTransform() const { return m_uvTransform; }
+
+#if defined(__EMSCRIPTEN__)
+    void delegate(RenderImageDelegate* delegate) { m_delegate = delegate; }
+    void decodedAsync() const
+    {
+        if (m_delegate != nullptr)
+        {
+            m_delegate->decodedAsync();
+        }
+    }
+
+private:
+    RenderImageDelegate* m_delegate = nullptr;
+#endif
 };
 
-class RenderPath : public CommandPath, public enable_lite_rtti<RenderPath>
+class RenderPath : public CommandPath, public ENABLE_LITE_RTTI(RenderPath)
 {
 public:
     RenderPath();
     ~RenderPath() override;
 
     RenderPath* renderPath() override { return this; }
+    const RenderPath* renderPath() const override { return this; }
+
     void addPath(CommandPath* path, const Mat2D& transform) override
     {
         addRenderPath(path->renderPath(), transform);
     }
 
+    void addPathBackwards(CommandPath* path, const Mat2D& transform)
+    {
+        addRenderPath(path->renderPath(), transform);
+    }
+
     virtual void addRenderPath(RenderPath* path, const Mat2D& transform) = 0;
+    virtual void addRenderPathBackwards(RenderPath* path,
+                                        const Mat2D& transform)
+    {
+        // No-op on non rive renderer.
+    }
 };
 
 class Renderer
@@ -173,9 +219,14 @@ public:
     void scale(float sx, float sy);
     void rotate(float radians);
 
-    void align(Fit fit, Alignment alignment, const AABB& frame, const AABB& content)
+    void align(Fit fit,
+               Alignment alignment,
+               const AABB& frame,
+               const AABB& content,
+               const float scaleFactor = 1.0f)
     {
-        transform(computeAlignment(fit, alignment, frame, content));
+        transform(
+            computeAlignment(fit, alignment, frame, content, scaleFactor));
     }
 };
 } // namespace rive

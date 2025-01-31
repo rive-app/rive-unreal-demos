@@ -33,7 +33,8 @@ private:
     std::vector<uint16_t> m_indices;
 
     std::vector<float> uvStops(AxisType forAxis);
-    std::vector<float> vertexStops(const std::vector<float>& normalizedStops, AxisType forAxis);
+    std::vector<float> vertexStops(const std::vector<float>& normalizedStops,
+                                   AxisType forAxis);
 
     uint16_t tileRepeat(std::vector<SliceMeshVertex>& vertices,
                         std::vector<uint16_t>& indices,
@@ -53,6 +54,7 @@ private:
 protected:
 public:
     SliceMesh(NSlicer* nslicer);
+    MeshType type = MeshType::nslice;
     void draw(Renderer* renderer,
               const RenderImage* image,
               BlendMode blendMode,

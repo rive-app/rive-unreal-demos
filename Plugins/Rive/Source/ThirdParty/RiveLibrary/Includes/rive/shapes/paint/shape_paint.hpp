@@ -5,12 +5,15 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_flags.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
 {
 class RenderPaint;
 class ShapePaintMutator;
+class Feather;
+class ShapePaintContainer;
 class ShapePaint : public ShapePaintBase
 {
 protected:
@@ -31,19 +34,16 @@ public:
     virtual RenderPaint* initRenderPaint(ShapePaintMutator* mutator);
 
     virtual PathFlags pathFlags() const = 0;
-    bool isFlagged(PathFlags flags) const { return (int)(pathFlags() & flags) != 0x00; }
-
-    void draw(Renderer* renderer, CommandPath* path, const RawPath* rawPath = nullptr)
+    bool isFlagged(PathFlags flags) const
     {
-        draw(renderer, path, rawPath, renderPaint());
+        return (int)(pathFlags() & flags) != 0x00;
     }
 
     virtual void draw(Renderer* renderer,
-                      CommandPath* path,
-                      // When every CommandPath stores a RawPath we can get rid
-                      // of this argument.
-                      const RawPath* rawPath,
-                      RenderPaint* paint) = 0;
+                      ShapePaintPath* shapePaintPath,
+                      const Mat2D& transform,
+                      bool usePathFillRule = false,
+                      RenderPaint* overridePaint = nullptr);
 
     RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 
@@ -52,11 +52,23 @@ public:
     /// RadialGradient.
     Component* paint() const { return m_PaintMutator->component(); }
 
-    bool isTranslucent() const { return !this->isVisible() || m_PaintMutator->isTranslucent(); }
+    bool isTranslucent() const
+    {
+        return !this->isVisible() || m_PaintMutator->isTranslucent();
+    }
 
     /// Apply this ShapePaint to an external RenderPaint and optionally modulate
     /// the opacity by opacityModifer.
-    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) const = 0;
+    virtual void applyTo(RenderPaint* renderPaint,
+                         float opacityModifier) const = 0;
+
+    void feather(Feather* feather);
+    Feather* feather() const;
+
+    virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
+
+private:
+    Feather* m_feather = nullptr;
 };
 } // namespace rive
 

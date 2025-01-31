@@ -3,6 +3,7 @@
 
 #include "rive/hit_info.hpp"
 #include "rive/generated/shapes/shape_base.hpp"
+#include "rive/animation/hittable.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/drawable_flag.hpp"
@@ -13,7 +14,9 @@ namespace rive
 class Path;
 class PathComposer;
 class HitTester;
-class Shape : public ShapeBase, public ShapePaintContainer
+class RenderPathDeformer;
+
+class Shape : public ShapeBase, public ShapePaintContainer, public Hittable
 {
 private:
     PathComposer m_PathComposer;
@@ -21,6 +24,7 @@ private:
     AABB m_WorldBounds;
 
     bool m_WantDifferencePath = false;
+    RenderPathDeformer* m_deformer = nullptr;
 
     Artboard* getArtboard() override { return artboard(); }
 
@@ -38,33 +42,36 @@ public:
     void update(ComponentDirt value) override;
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
-    bool hitTest(const IAABB& area) const;
 
     const PathComposer* pathComposer() const { return &m_PathComposer; }
     PathComposer* pathComposer() { return &m_PathComposer; }
+
+    RenderPathDeformer* deformer() const { return m_deformer; }
 
     void pathChanged();
     void addFlags(PathFlags flags);
     bool isFlagged(PathFlags flags) const;
     StatusCode onAddedDirty(CoreContext* context) override;
+    StatusCode onAddedClean(CoreContext* context) override;
     bool isEmpty();
     void pathCollapseChanged();
 
     AABB worldBounds()
     {
-        if ((static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::WorldBoundsClean) !=
-            DrawableFlag::WorldBoundsClean)
+        if ((static_cast<DrawableFlag>(drawableFlags()) &
+             DrawableFlag::WorldBoundsClean) != DrawableFlag::WorldBoundsClean)
         {
-            drawableFlags(drawableFlags() |
-                          static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
+            drawableFlags(
+                drawableFlags() |
+                static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
             m_WorldBounds = computeWorldBounds();
         }
         return m_WorldBounds;
     }
     void markBoundsDirty()
     {
-        drawableFlags(drawableFlags() &
-                      ~static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
+        drawableFlags(drawableFlags() & ~static_cast<unsigned short>(
+                                            DrawableFlag::WorldBoundsClean));
     }
 
     AABB computeWorldBounds(const Mat2D* xform = nullptr) const;
@@ -73,6 +80,19 @@ public:
                         LayoutMeasureMode widthMode,
                         float height,
                         LayoutMeasureMode heightMode) override;
+
+    bool hitTestAABB(const Vec2D& position) override;
+    bool hitTestHiFi(const Vec2D& position, float hitRadius) override;
+    // Implemented for ShapePaintContainer.
+    const Mat2D& shapeWorldTransform() const override
+    {
+        return worldTransform();
+    }
+
+    ShapePaintPath* worldPath() override;
+    ShapePaintPath* localPath() override;
+    ShapePaintPath* localClockwisePath() override;
+    Component* pathBuilder() override;
 };
 } // namespace rive
 
