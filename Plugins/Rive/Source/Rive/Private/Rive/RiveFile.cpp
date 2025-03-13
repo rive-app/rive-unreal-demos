@@ -6,6 +6,7 @@
 #include "Logs/RiveLog.h"
 #include "Rive/Assets/RiveFileAssetImporter.h"
 #include "Rive/Assets/RiveFileAssetLoader.h"
+#include "Rive/ViewModel/RiveViewModel.h"
 #include "Rive/RiveArtboard.h"
 #include "Blueprint/UserWidget.h"
 
@@ -124,6 +125,7 @@ void URiveFile::Initialize()
                 {
                     ArtboardNames.Empty();
                     Artboards.Empty();
+                    ViewModels.Empty();
 
                     FScopeLock Lock(&RiveRenderer->GetThreadDataCS());
                     rive::ImportResult ImportResult;
@@ -172,16 +174,25 @@ void URiveFile::Initialize()
                         return;
                     }
 
-                    // UI Helper
+                    // UI Helpers
                     for (int i = 0; i < RiveNativeFilePtr->artboardCount(); ++i)
                     {
                         auto Artboard = NewObject<URiveArtboard>();
 
-                        // We won't tick the artboard, it's just initialized for
-                        // informational purposes
+                        // We won't tick the artboard, it's just
+                        // initialized for informational purposes.
                         Artboard->Initialize(this, nullptr, i, "");
                         Artboards.Add(Artboard);
                         ArtboardNames.Add(Artboard->GetArtboardName());
+                    }
+
+                    for (int i = 0; i < RiveNativeFilePtr->viewModelCount();
+                         ++i)
+                    {
+                        auto ViewModel = NewObject<URiveViewModel>();
+                        ViewModel->Initialize(
+                            RiveNativeFilePtr->viewModelByIndex(i));
+                        ViewModels.Add(ViewModel);
                     }
 
                     BroadcastInitializationResult(true);
@@ -207,6 +218,76 @@ void URiveFile::BroadcastInitializationResult(bool bSuccess)
     {
         OnRiveReady.Broadcast();
     }
+}
+
+int32 URiveFile::GetViewModelCount() const
+{
+    if (!RiveNativeFilePtr)
+    {
+        return 0;
+    }
+    return static_cast<int32>(RiveNativeFilePtr->viewModelCount());
+}
+
+URiveViewModel* URiveFile::GetViewModelByIndex(int32 Index) const
+{
+    if (!RiveNativeFilePtr || Index < 0 || Index >= GetViewModelCount())
+    {
+        return nullptr;
+    }
+
+    rive::ViewModelRuntime* ViewModel =
+        RiveNativeFilePtr->viewModelByIndex(Index);
+    if (ViewModel)
+    {
+        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
+        ViewModelWrapper->Initialize(ViewModel);
+        return ViewModelWrapper;
+    }
+    return nullptr;
+}
+
+URiveViewModel* URiveFile::GetViewModelByName(const FString& Name) const
+{
+    if (!RiveNativeFilePtr)
+    {
+        return nullptr;
+    }
+
+    rive::ViewModelRuntime* ViewModel =
+        RiveNativeFilePtr->viewModelByName(TCHAR_TO_UTF8(*Name));
+    if (ViewModel)
+    {
+        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
+        ViewModelWrapper->Initialize(ViewModel);
+        return ViewModelWrapper;
+    }
+    return nullptr;
+}
+
+URiveViewModel* URiveFile::GetDefaultArtboardViewModel(
+    URiveArtboard* Artboard) const
+{
+    if (!RiveNativeFilePtr || !Artboard)
+    {
+        return nullptr;
+    }
+
+    rive::Artboard* NativeArtboard = Artboard->GetNativeArtboard();
+    if (!NativeArtboard)
+    {
+        return nullptr;
+    }
+
+    rive::ViewModelRuntime* ViewModel =
+        RiveNativeFilePtr->defaultArtboardViewModel(NativeArtboard);
+    if (ViewModel)
+    {
+        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
+        ViewModelWrapper->Initialize(ViewModel);
+        return ViewModelWrapper;
+    }
+    return nullptr;
 }
 
 #if WITH_EDITOR
@@ -267,8 +348,8 @@ bool URiveFile::EditorImport(const FString& InRiveFilePath,
     {
         UE_LOG(LogRive,
                Error,
-               TEXT("Unable to Import the RiveFile '%s' as the RiveRenderer is "
-                    "null"),
+               TEXT("Unable to Import the RiveFile '%s' as the RiveRenderer is"
+                    " null"),
                *InRiveFilePath);
         return false;
     }

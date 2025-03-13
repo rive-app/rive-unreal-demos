@@ -12,10 +12,11 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
-FLAT VARYING(1, ushort, v_pathID);
-FLAT VARYING(2, uint2, v_coveragePlacement);
-VARYING(3, float2, v_coverageCoord);
+FLAT VARYING(0, ushort, v_pathID);
+NO_PERSPECTIVE VARYING(1, float4, v_coverages);
+NO_PERSPECTIVE VARYING(2, float2, v_atlasCoord);
+FLAT VARYING(3, uint2, v_coveragePlacement);
+VARYING(4, float2, v_coverageCoord);
 VARYING_BLOCK_END
 
 #ifdef VERTEX
@@ -24,8 +25,8 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_mirroredVertexData, float4);
 
-    VARYING_INIT(v_edgeDistance, half2);
     VARYING_INIT(v_pathID, ushort);
+    VARYING_INIT(v_coverages, float4);
     VARYING_INIT(v_coveragePlacement, uint2);
     VARYING_INIT(v_coverageCoord, float2);
 
@@ -37,7 +38,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                        _instanceID,
                                        pathID,
                                        vertexPosition,
-                                       v_edgeDistance VERTEX_CONTEXT_UNPACK))
+                                       v_coverages VERTEX_CONTEXT_UNPACK))
     {
         uint4 coverageData =
             STORAGE_BUFFER_LOAD4(_EXPORTED_pathBuffer, pathID * 4u + 3u);
@@ -54,8 +55,8 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                      uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(v_edgeDistance);
     VARYING_PACK(v_pathID);
+    VARYING_PACK(v_coverages);
     VARYING_PACK(v_coveragePlacement);
     VARYING_PACK(v_coverageCoord);
     EMIT_VERTEX(pos);
@@ -71,10 +72,14 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
-FLAT VARYING(1, ushort, v_pathID);
+FLAT VARYING(0, ushort, v_pathID);
+#ifdef ATLAS_BLIT
+NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
+#else
+OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
 FLAT VARYING(2, uint2, v_coveragePlacement);
 VARYING(3, float2, v_coverageCoord);
+#endif
 VARYING_BLOCK_END
 
 #ifdef VERTEX
@@ -82,46 +87,53 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_triangleVertex, float3);
 
-    VARYING_INIT(v_windingWeight, half);
+#ifdef ATLAS_BLIT
+    VARYING_INIT(v_atlasCoord, float2);
+#else
+#endif
     VARYING_INIT(v_pathID, ushort);
+#ifdef ATLAS_BLIT
+    VARYING_INIT(v_atlasCoord, float2);
+#else
+    VARYING_INIT(v_windingWeight, half);
     VARYING_INIT(v_coveragePlacement, uint2);
     VARYING_INIT(v_coverageCoord, float2);
+#endif
 
     uint pathID;
-    float2 vertexPosition =
+    float2 vertexPosition;
+#ifdef ATLAS_BLIT
+    vertexPosition =
+        unpack_atlas_coverage_vertex(_EXPORTED_a_triangleVertex,
+                                     pathID,
+                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
+#else
+    vertexPosition =
         unpack_interior_triangle_vertex(_EXPORTED_a_triangleVertex,
                                         pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
     uint4 coverageData = STORAGE_BUFFER_LOAD4(_EXPORTED_pathBuffer, pathID * 4u + 3u);
-    v_pathID = pathID;
     v_coveragePlacement = coverageData.xy;
     v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
+#endif
+    v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
-    VARYING_PACK(v_windingWeight);
     VARYING_PACK(v_pathID);
+#ifdef ATLAS_BLIT
+    VARYING_PACK(v_atlasCoord);
+#else
+    VARYING_PACK(v_windingWeight);
     VARYING_PACK(v_coveragePlacement);
     VARYING_PACK(v_coverageCoord);
+#endif
+
     EMIT_VERTEX(pos);
 }
 #endif // VERTEX
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, _EXPORTED_gradTexture);
-#ifdef ENABLE_FEATHER
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, _EXPORTED_featherTexture);
-#endif
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, _EXPORTED_imageTexture);
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#ifdef ENABLE_FEATHER
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, _EXPORTED_paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, _EXPORTED_paintAuxBuffer);
@@ -292,10 +304,18 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
 
 FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 {
-    VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
+#ifdef DRAW_PATH
+    VARYING_UNPACK(v_coverages, float4);
+#elif defined(ATLAS_BLIT)
+    VARYING_UNPACK(v_atlasCoord, float2);
+#else
+    VARYING_UNPACK(v_windingWeight, half);
+#endif
+#ifndef ATLAS_BLIT
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
+#endif
 
     half4 paintColor;
     uint pathID = v_pathID;
@@ -343,6 +363,11 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
         discard;
     }
 
+#ifdef ATLAS_BLIT
+    paintColor.w *= filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
     // Swizzle the coverage buffer in a tiled format, starting with 32x32
     // row-major tiles.
     uint coverageIndex = v_coveragePlacement.x;
@@ -364,16 +389,15 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 #else
         half fragCoverage;
 #ifdef ENABLE_FEATHER
-        if (ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        if (ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
-                SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         half borrowedCoverage = max(-fragCoverage, .0);
 #endif
@@ -383,47 +407,46 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 #endif // BORROWED_COVERAGE_PREPASS
 
 #ifndef DRAW_INTERIOR_TRIANGLES
-    if (is_stroke(v_edgeDistance))
+    if (is_stroke(v_coverages))
     {
         half fragCoverage;
 #ifdef ENABLE_FEATHER
-        if (ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        if (ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = feathered_stroke_coverage(
-                v_edgeDistance,
-                SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif
         {
-            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+            fragCoverage = min(v_coverages.x, v_coverages.y);
         }
         fragCoverage = clamp(fragCoverage, .0, 1.);
         apply_stroke_coverage(paintColor.w, fragCoverage, coverageIndex);
     }
     else // It's a fill.
-#endif   // !DRAW_INTERIOR_TRIANGLES
+#endif // !DRAW_INTERIOR_TRIANGLES
     {
 #ifdef DRAW_INTERIOR_TRIANGLES
         half fragCoverage = v_windingWeight;
 #else
         half fragCoverage;
 #ifdef ENABLE_FEATHER
-        if (ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        if (ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
-                SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         fragCoverage = clamp(fragCoverage, .0, 1.);
 #endif
         apply_fill_coverage(paintColor.w, fragCoverage, coverageIndex);
     }
+#endif // @ATLAS_BLIT
 
     EMIT_FRAG_DATA(paintColor);
 }

@@ -1,5 +1,11 @@
 #pragma once
 
+#define GLSL_ATLAS_BLIT "_EXPORTED_ATLAS_BLIT"
+#define GLSL_ATLAS_BLIT_raw _EXPORTED_ATLAS_BLIT
+#define GLSL_ATLAS_FEATHERED_FILL "_EXPORTED_ATLAS_FEATHERED_FILL"
+#define GLSL_ATLAS_FEATHERED_FILL_raw _EXPORTED_ATLAS_FEATHERED_FILL
+#define GLSL_ATLAS_FEATHERED_STROKE "_EXPORTED_ATLAS_FEATHERED_STROKE"
+#define GLSL_ATLAS_FEATHERED_STROKE_raw _EXPORTED_ATLAS_FEATHERED_STROKE
 #define GLSL_BORROWED_COVERAGE_PREPASS "_EXPORTED_BORROWED_COVERAGE_PREPASS"
 #define GLSL_BORROWED_COVERAGE_PREPASS_raw _EXPORTED_BORROWED_COVERAGE_PREPASS
 #define GLSL_CLEAR_CLIP "_EXPORTED_CLEAR_CLIP"
@@ -146,6 +152,14 @@
 #define GLSL_a_x0x1_raw _EXPORTED_a_x0x1
 #define GLSL_a_yWithFlags "_EXPORTED_a_yWithFlags"
 #define GLSL_a_yWithFlags_raw _EXPORTED_a_yWithFlags
+#define GLSL_atlasFillFragmentMain "_EXPORTED_atlasFillFragmentMain"
+#define GLSL_atlasFillFragmentMain_raw _EXPORTED_atlasFillFragmentMain
+#define GLSL_atlasStrokeFragmentMain "_EXPORTED_atlasStrokeFragmentMain"
+#define GLSL_atlasStrokeFragmentMain_raw _EXPORTED_atlasStrokeFragmentMain
+#define GLSL_atlasTexture "_EXPORTED_atlasTexture"
+#define GLSL_atlasTexture_raw _EXPORTED_atlasTexture
+#define GLSL_atlasVertexMain "_EXPORTED_atlasVertexMain"
+#define GLSL_atlasVertexMain_raw _EXPORTED_atlasVertexMain
 #define GLSL_blitFragmentMain "_EXPORTED_blitFragmentMain"
 #define GLSL_blitFragmentMain_raw _EXPORTED_blitFragmentMain
 #define GLSL_blitTextureSource "_EXPORTED_blitTextureSource"

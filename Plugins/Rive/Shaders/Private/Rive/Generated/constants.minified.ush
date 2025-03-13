@@ -13,6 +13,25 @@
 // -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS in the domain x=0..1.
 #define FEATHER_TEXTURE_STDDEVS  float(3)
 
+// Indices of function tables in the feather texture1d array.
+// NOTE: This will be a texture2d if texture1d isn't supported.
+#define FEATHER_FUNCTION_ARRAY_INDEX  0
+#define FEATHER_INVERSE_FUNCTION_ARRAY_INDEX  1
+#define FEATHER_TEXTURE_1D_ARRAY_LENGTH  2
+
+// Number of additional tessellation "helper" vertices that need to be allocated
+// for a feather join.
+#define FEATHER_JOIN_HELPER_VERTEX_COUNT  3u
+
+// Amount to increase "joinSegmentCount" in a feather join so the number of
+// literal vertices allocated increases by FEATHER_JOIN_HELPER_VERTEX_COUNT.
+#define FEATHER_JOIN_HELPER_SEGMENT_COUNT                                       \
+    (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
+
+// Feather joins are split into a backward and forward section. Both sections
+// need at least one segment, thus a minimum of 2 (plus helper vertices).
+#define FEATHER_JOIN_MIN_SEGMENT_COUNT  (2u + FEATHER_JOIN_HELPER_SEGMENT_COUNT)
+
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
@@ -66,13 +85,14 @@
 
 // Internal contour flags.
 #define MIRRORED_CONTOUR_CONTOUR_FLAG  (1u << 24u)
-// Degenerate outsets are used to implement discontinuities in feather joins.
-#define ZERO_FEATHER_OUTSET_CONTOUR_FLAG  (1u << 23u)
-#define JOIN_TANGENT_0_CONTOUR_FLAG  (1u << 22u)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG  (1u << 21u)
-#define LEFT_JOIN_CONTOUR_FLAG  (1u << 20u)
-#define RIGHT_JOIN_CONTOUR_FLAG  (1u << 19u)
+#define JOIN_TANGENT_0_CONTOUR_FLAG  (1u << 23u)
+#define JOIN_TANGENT_INNER_CONTOUR_FLAG  (1u << 22u)
+#define LEFT_JOIN_CONTOUR_FLAG  (1u << 21u)
+#define RIGHT_JOIN_CONTOUR_FLAG  (1u << 20u)
 #define CONTOUR_ID_MASK  0xffffu
+
+// This is guaranteed to not collide with a neighboring contour ID.
+#define INVALID_CONTOUR_ID_WITH_FLAGS  0u
 
 // Says which part of the patch a vertex belongs to.
 #define STROKE_VERTEX  0
@@ -102,21 +122,27 @@
 #define PER_DRAW_BINDINGS_SET  1
 
 // Index at which we access each resource.
-#define TESS_VERTEX_TEXTURE_IDX  0
-#define GRAD_TEXTURE_IDX  1
-#define FEATHER_TEXTURE_IDX  2
-#define IMAGE_TEXTURE_IDX  3
-#define PATH_BUFFER_IDX  4
-#define PAINT_BUFFER_IDX  5
-#define PAINT_AUX_BUFFER_IDX  6
-#define CONTOUR_BUFFER_IDX  7
-#define FLUSH_UNIFORM_BUFFER_IDX  8
-#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX  9
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX  10
+// (Enumerate buffers first because GLES allows a hard limit on buffer index
+// bindings as low as 7.)
+#define FLUSH_UNIFORM_BUFFER_IDX  0
+#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX  1
+#define IMAGE_DRAW_UNIFORM_BUFFER_IDX  2
+#define PATH_BUFFER_IDX  3
+#define PAINT_BUFFER_IDX  4
+#define PAINT_AUX_BUFFER_IDX  5
+#define CONTOUR_BUFFER_IDX  6
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX  11
-#define DST_COLOR_TEXTURE_IDX  12
-#define DEFAULT_BINDINGS_SET_SIZE  13
+#define COVERAGE_BUFFER_IDX  7
+#define TESS_VERTEX_TEXTURE_IDX  8
+#define GRAD_TEXTURE_IDX  9
+#define FEATHER_TEXTURE_IDX  10
+#define ATLAS_TEXTURE_IDX  11
+#define IMAGE_TEXTURE_IDX  12
+#define DST_COLOR_TEXTURE_IDX  13
+#define DEFAULT_BINDINGS_SET_SIZE  14
+
+// Metal doesn't allow us to bind buffers index 0 or 1. Offset them by 2.
+#define METAL_BUFFER_IDX(IDX)  (2 + IDX)
 
 // Samplers are accessed at the same index as their corresponding texture, so we
 // put them in a separate binding set.
@@ -133,6 +159,8 @@
 #define CLIP_PLANE_IDX  1
 #define SCRATCH_COLOR_PLANE_IDX  2
 #define COVERAGE_PLANE_IDX  3
+#define PIXEL_LOCAL_STORAGE_PLANE_COUNT  4
+#define DEPTH_STENCIL_IDX  PIXEL_LOCAL_STORAGE_PLANE_COUNT
 
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.
 #define RIVE_MITER_LIMIT  float(4)
@@ -184,13 +212,6 @@
 #define CLOCKWISE_COVERAGE_PRECISION  float(2048)
 #define CLOCKWISE_COVERAGE_INVERSE_PRECISION  float(0.00048828125)
 #define CLOCKWISE_FILL_ZERO_VALUE  (1u << 16)
-
-// Binding points for storage buffers.
-#define PAINT_STORAGE_BUFFER_IDX  8
-#define PAINT_MATRIX_STORAGE_BUFFER_IDX  9
-#define PAINT_TRANSLATE_STORAGE_BUFFER_IDX  10
-#define CLIPRECT_MATRIX_STORAGE_BUFFER_IDX  11
-#define CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX  12
 
 // Indices for SPIRV specialization constants (used in lieu of #defines in
 // Vulkan.)

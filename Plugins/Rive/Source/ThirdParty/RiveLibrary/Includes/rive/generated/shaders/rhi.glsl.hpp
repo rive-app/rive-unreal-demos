@@ -59,13 +59,21 @@ typedef float3 packed_float3;
 
 #ifdef _EXPORTED_ENABLE_MIN_16_PRECISION
 
+#if COMPILER_HLSL || COMPILER_VULKAN
+
 typedef min16uint ushort;
+
+#endif // COMPILER_HLSL
 
 #else
 
+#if COMPILER_HLSL || COMPILER_VULKAN
+
 typedef uint ushort;
 
-#endif
+#endif // COMPILER_HLSL
+
+#endif // ENABLE_MIN_16_PRECISION
 
 #define SPLAT(A, B)  A##B
 
@@ -82,6 +90,17 @@ typedef uint ushort;
     ;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE)  TYPE NAME = attrs.NAME
+
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                          \
+    cbuffer NAME                                                              \
+    {                                                                          \
+        struct                                                                 \
+        {
+
+#define UNIFORM_BLOCK_END(NAME)                                                 \
+    }                                                                          \
+    NAME;                                                                      \
+    }
 
 #define VARYING_BLOCK_BEGIN                                                     \
     struct Varyings                                                            \
@@ -113,9 +132,9 @@ typedef uint ushort;
 
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)  uniform Texture2D<uint4> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME)  uniform Texture2D<float4> NAME
-#define TEXTURE_RGBA8(SET, IDX, NAME)  uniform Texture2D<unorm float4> NAME
-#define TEXTURE_R16F(SET, IDX, NAME)                                            \
-    uniform Texture2D<half> NAME : register(t##IDX)
+#define TEXTURE_RGBA8(SET, IDX, NAME)  uniform Texture2D<UNORM half4> NAME
+#define TEXTURE_R16F(SET, IDX, NAME)  uniform Texture2D<half> NAME
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME)  uniform Texture2DArray<half> NAME
 #define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                    \
     Texture2D<half> NAME, SamplerState SAMPLER_NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME)  NAME, SAMPLER_NAME
@@ -134,6 +153,15 @@ typedef uint ushort;
 #define TEXTURE_REF_SAMPLE_LOD  TEXTURE_SAMPLE_LOD
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                \
     NAME.SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)         \
+    NAME.Gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                        \
+    NAME.SampleLevel(SAMPLER_NAME, float3(X, 0.5, ARRAY_INDEX), LOD)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -146,7 +174,7 @@ typedef uint ushort;
 
 #define PLS_BLOCK_BEGIN
 #ifdef _EXPORTED_ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_DECL4F(IDX, NAME)  uniform PLS_TEX2D<unorm half4> NAME
+#define PLS_DECL4F(IDX, NAME)  uniform PLS_TEX2D<UNORM half4> NAME
 #else
 #define PLS_DECL4F(IDX, NAME)  uniform PLS_TEX2D<uint> NAME
 #endif
@@ -192,6 +220,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
+
+#define TEXTURE_CONTEXT_DECL
+#define TEXTURE_CONTEXT_FORWARD
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                 \
                                                                                \
@@ -241,8 +272,10 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define PLS_CONTEXT_DECL  , int2 _plsCoord
 #define PLS_CONTEXT_UNPACK  , _plsCoord
 
-#define PLS_MAIN(NAME)  [earlydepthstencil] void NAME(Varyings _varyings) { \
-        float2 _fragCoord = _varyings._pos.xy;\
+#define PLS_MAIN(NAME)                                                          \
+    EARLYDEPTHSTENCIL void NAME(Varyings _varyings)                            \
+    {                                                                          \
+        float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME)  PLS_MAIN(NAME)
@@ -250,7 +283,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define EMIT_PLS  }
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                               \
-    [earlydepthstencil] half4 NAME(Varyings _varyings) : SV_Target           \
+    EARLYDEPTHSTENCIL half4 NAME(Varyings _varyings) : SV_Target              \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \
@@ -339,6 +372,8 @@ INLINE float fract(float x) { return frac(x); }
 INLINE float2 fract(float2 x) { return frac(x); }
 INLINE float3 fract(float3 x) { return frac(x); }
 INLINE float4 fract(float4 x) { return frac(x); }
+
+INLINE float mod(float x, float y) { return fmod(x, y); }
 
 // Reimplement intrinsics for half types.
 // This shadows the intrinsic function for floats, so we also have to declare

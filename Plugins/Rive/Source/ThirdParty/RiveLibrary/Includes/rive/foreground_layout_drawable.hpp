@@ -10,6 +10,8 @@ class ForegroundLayoutDrawable : public ForegroundLayoutDrawableBase,
 {
 public:
     void draw(Renderer* renderer) override;
+    void update(ComponentDirt value) override;
+    void buildDependencies() override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
 
     Artboard* getArtboard() override { return artboard(); }
@@ -21,6 +23,9 @@ public:
     }
 
     Component* pathBuilder() override;
+    ShapePaintPath* worldPath() override;
+    ShapePaintPath* localPath() override;
+    ShapePaintPath* localClockwisePath() override;
 };
 } // namespace rive
 

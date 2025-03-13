@@ -43,6 +43,10 @@
 #define ushort3  mediump uvec3
 #define ushort4  mediump uvec4
 
+#define bool2  bvec2
+#define bool3  bvec3
+#define bool4  bvec4
+
 #define float2x2  mat2
 
 #define INLINE
@@ -154,8 +158,6 @@
 #define TEXTURE_R16F(SET, IDX, NAME)  uniform mediump sampler2D NAME
 #endif
 
-#define TEXTURE_RG32UI(SET, IDX, NAME)  TEXTURE_RGBA32UI(SET, IDX, NAME)
-
 #ifdef TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                       \
     layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
@@ -169,9 +171,6 @@
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                    \
-    mediump texture2D NAME, mediump sampler SAMPLER_NAME
-#define SAMPLED_R16F(NAME, SAMPLER_NAME)  NAME, SAMPLER_NAME
 #else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
 // parameters are API-level state tied to the texture.
@@ -182,12 +181,45 @@
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                \
     textureGrad(NAME, COORD, DDX, DDY)
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)  mediump sampler2D NAME
-#define SAMPLED_R16F(NAME, SAMPLER_NAME)  NAME
 #endif // !@TARGET_VULKAN
 
-#define TEXTURE_REF_SAMPLE_LOD  TEXTURE_SAMPLE_LOD
+// Polyfill the feather texture as a sampler2D since ES doesn't support
+// sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED": when
+// polyfilled as a 2D texture, the "array index" needs to be a 0..1 normalized
+// y coordinate instead of the literal array index.
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME)  TEXTURE_R16F(SET, IDX, NAME)
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                        \
+    TEXTURE_SAMPLE_LOD(NAME,                                                   \
+                       SAMPLER_NAME,                                           \
+                       float2(X, ARRAY_INDEX_NORMALIZED),                      \
+                       LOD)
+
+#define TEXTURE_RG32UI(SET, IDX, NAME)  TEXTURE_RGBA32UI(SET, IDX, NAME)
+
+#define TEXTURE_CONTEXT_DECL
+
+#define TEXTURE_CONTEXT_FORWARD
 #define TEXEL_FETCH(NAME, COORD)  texelFetch(NAME, COORD, 0)
+
+#ifdef TARGET_VULKAN
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)         \
+    textureGather(sampler2D(NAME, SAMPLER_NAME),                               \
+                  (COORD) * (TEXTURE_INVERSE_SIZE))
+#elif GLSL_VERSION >= 310
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)         \
+    textureGather(NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#else
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)         \
+    make_half4(TEXEL_FETCH(NAME, int2(COORD) + int2(-1, 0)).x,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, 0)).x,                  \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, -1)).x,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(-1, -1)).x)
+#endif
 
 #define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 #define VERTEX_STORAGE_BUFFER_BLOCK_END
@@ -437,7 +469,7 @@
 #ifdef ENABLE_SPIRV_CROSS_BASE_INSTANCE
        // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
        // SPIRV-Cross sytems that search for it by name.
-       uniform int SPIRV_Cross_BaseInstance;
+       uniform highp int SPIRV_Cross_BaseInstance;
 #define INSTANCE_INDEX  (gl_InstanceID + SPIRV_Cross_BaseInstance)
 #else
 #define INSTANCE_INDEX  (gl_InstanceID + gl_BaseInstance)

@@ -8,10 +8,12 @@
 #include "Rive/RiveEvent.h"
 #include "Rive/RiveFile.h"
 #include "Rive/RiveStateMachine.h"
+#include "Rive/ViewModel/RiveViewModelInstance.h"
 #include "Stats/RiveStats.h"
 
 #if WITH_RIVE
 THIRD_PARTY_INCLUDES_START
+#include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/generated/animation/state_machine_bool_base.hpp"
@@ -45,6 +47,9 @@ void URiveArtboard::AdvanceStateMachine(float InDeltaSeconds)
             StateMachine->Advance(InDeltaSeconds);
         }
     }
+
+    if (CurrentViewModelInstance.IsValid())
+        CurrentViewModelInstance->HandleCallbacks();
 }
 
 void URiveArtboard::Transform(const FVector2f& One,
@@ -114,6 +119,7 @@ void URiveArtboard::Draw()
     {
         return;
     }
+
     RiveRenderTarget->Draw(GetNativeArtboard());
     LastDrawTransform = GetTransformMatrix();
 }
@@ -863,6 +869,10 @@ void URiveArtboard::SetStateMachineName(const FString& NewStateMachineName)
 
         StateMachinePtr = MakeUnique<FRiveStateMachine>(NativeArtboardPtr.get(),
                                                         StateMachineName);
+
+        if (CurrentViewModelInstance.IsValid())
+            StateMachinePtr->SetViewModelInstance(
+                CurrentViewModelInstance.Get());
     }
 }
 
@@ -949,8 +959,8 @@ rive::ArtboardInstance* URiveArtboard::GetNativeArtboard() const
     {
         UE_LOG(LogRive,
                Error,
-               TEXT("Failed to retrieve the NativeArtboard as we do not have a "
-                    "valid renderer."));
+               TEXT("Failed to retrieve the NativeArtboard as we do not have"
+                    " a valid renderer."));
         return nullptr;
     }
 
@@ -976,8 +986,8 @@ rive::AABB URiveArtboard::GetBounds() const
     {
         UE_LOG(LogRive,
                Error,
-               TEXT("Failed to GetBounds for the Artboard as we do not have a "
-                    "valid renderer."));
+               TEXT("Failed to GetBounds for the Artboard as we do not have"
+                    " a valid renderer."));
         return {};
     }
 
@@ -1165,9 +1175,48 @@ void URiveArtboard::Initialize_Internal(const rive::Artboard* InNativeArtboard)
     for (const rive::Event* Event : Events)
     {
         EventNames.Add(Event->name().c_str());
+        //UE_LOG(LogRive, Log, TEXT("Event: %hs"), Event->name().c_str());
     }
 
     bIsInitialized = true;
+}
+
+void URiveArtboard::SetViewModelInstance(
+    URiveViewModelInstance* RiveViewModelInstance)
+{
+    // Store off the VM instance because we need to set
+    // it on dynamically created state machines.
+    CurrentViewModelInstance = RiveViewModelInstance;
+
+    if (!NativeArtboardPtr)
+    {
+        UE_LOG(LogRive,
+               Warning,
+               TEXT("SetViewModelInstance failed: "
+                    "NativeArtboardPtr is null."));
+        return;
+    }
+
+    if (!RiveViewModelInstance || !RiveViewModelInstance->GetNativePtr())
+    {
+        UE_LOG(LogRive,
+               Warning,
+               TEXT("SetViewModelInstance failed: "
+                    "RuntimeInstance is invalid or null."));
+        return;
+    }
+
+    // Access the native Rive runtime instance
+    rive::ViewModelInstanceRuntime* NativeInstance =
+        RiveViewModelInstance->GetNativePtr();
+
+    // Set the data context on the artboard
+    NativeArtboardPtr->bindViewModelInstance(NativeInstance->instance());
+
+    // Set the data context on the state machine if it exists.
+    FRiveStateMachine* StateMachine = GetStateMachine();
+    if (StateMachine)
+        StateMachine->SetViewModelInstance(RiveViewModelInstance);
 }
 
 #endif // WITH_RIVE

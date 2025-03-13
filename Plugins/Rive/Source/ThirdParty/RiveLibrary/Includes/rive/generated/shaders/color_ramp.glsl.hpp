@@ -100,6 +100,9 @@ VERTEX_MAIN(_EXPORTED_colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef _EXPORTED_FRAGMENT
+FRAG_TEXTURE_BLOCK_BEGIN
+FRAG_TEXTURE_BLOCK_END
+
 FRAG_DATA_MAIN(half4, _EXPORTED_colorRampFragmentMain)
 {
     VARYING_UNPACK(v_rampColor, half4);

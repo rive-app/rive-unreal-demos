@@ -235,29 +235,29 @@ half3 advanced_blend_coeffs(half3 src, half3 dst, ushort mode)
             {
                 src.xyz = clamp(src.xyz, make_half3(.0), make_half3(1.));
                 coeffs = set_lum_sat(src.xyz, dst.xyz, dst.xyz);
-                break;
             }
+            break;
         case BLEND_MODE_SATURATION:
             if (_EXPORTED_ENABLE_HSL_BLEND_MODES)
             {
                 src.xyz = clamp(src.xyz, make_half3(.0), make_half3(1.));
                 coeffs = set_lum_sat(dst.xyz, src.xyz, dst.xyz);
-                break;
             }
+            break;
         case BLEND_MODE_COLOR:
             if (_EXPORTED_ENABLE_HSL_BLEND_MODES)
             {
                 src.xyz = clamp(src.xyz, make_half3(.0), make_half3(1.));
                 coeffs = set_lum(src.xyz, dst.xyz);
-                break;
             }
+            break;
         case BLEND_MODE_LUMINOSITY:
             if (_EXPORTED_ENABLE_HSL_BLEND_MODES)
             {
                 src.xyz = clamp(src.xyz, make_half3(.0), make_half3(1.));
                 coeffs = set_lum(dst.xyz, src.xyz);
-                break;
             }
+            break;
 #endif
     }
     return coeffs;

@@ -121,6 +121,7 @@
 #include "rive/container_component.hpp"
 #include "rive/custom_property.hpp"
 #include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_group.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
 #include "rive/data_bind/bindable_property.hpp"
@@ -131,6 +132,8 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/converters/data_converter_boolean_negate.hpp"
+#include "rive/data_bind/converters/data_converter_formula.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
@@ -146,6 +149,15 @@
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
 #include "rive/data_bind/converters/data_converter_trigger.hpp"
+#include "rive/data_bind/converters/formula/formula_token.hpp"
+#include "rive/data_bind/converters/formula/formula_token_argument_separator.hpp"
+#include "rive/data_bind/converters/formula/formula_token_function.hpp"
+#include "rive/data_bind/converters/formula/formula_token_input.hpp"
+#include "rive/data_bind/converters/formula/formula_token_operation.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis_close.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis_open.hpp"
+#include "rive/data_bind/converters/formula/formula_token_value.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -202,6 +214,7 @@
 #include "rive/shapes/vertex.hpp"
 #include "rive/solo.hpp"
 #include "rive/text/text.hpp"
+#include "rive/text/text_follow_path_modifier.hpp"
 #include "rive/text/text_modifier.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/text/text_modifier_range.hpp"
@@ -209,6 +222,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_feature.hpp"
+#include "rive/text/text_target_modifier.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_variation_modifier.hpp"
 #include "rive/transform_component.hpp"
@@ -520,6 +534,8 @@ public:
                 return new Image();
             case CubicDetachedVertexBase::typeKey:
                 return new CubicDetachedVertex();
+            case CustomPropertyGroupBase::typeKey:
+                return new CustomPropertyGroup();
             case EventBase::typeKey:
                 return new Event();
             case DrawRulesBase::typeKey:
@@ -542,6 +558,8 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case DataConverterFormulaBase::typeKey:
+                return new DataConverterFormula();
             case DataConverterOperationBase::typeKey:
                 return new DataConverterOperation();
             case DataConverterOperationValueBase::typeKey:
@@ -568,8 +586,28 @@ public:
                 return new DataConverterTrigger();
             case DataConverterStringTrimBase::typeKey:
                 return new DataConverterStringTrim();
+            case FormulaTokenBase::typeKey:
+                return new FormulaToken();
+            case FormulaTokenArgumentSeparatorBase::typeKey:
+                return new FormulaTokenArgumentSeparator();
+            case FormulaTokenParenthesisBase::typeKey:
+                return new FormulaTokenParenthesis();
+            case FormulaTokenParenthesisCloseBase::typeKey:
+                return new FormulaTokenParenthesisClose();
+            case FormulaTokenOperationBase::typeKey:
+                return new FormulaTokenOperation();
+            case FormulaTokenFunctionBase::typeKey:
+                return new FormulaTokenFunction();
+            case FormulaTokenValueBase::typeKey:
+                return new FormulaTokenValue();
+            case FormulaTokenParenthesisOpenBase::typeKey:
+                return new FormulaTokenParenthesisOpen();
+            case FormulaTokenInputBase::typeKey:
+                return new FormulaTokenInput();
             case DataConverterOperationViewModelBase::typeKey:
                 return new DataConverterOperationViewModel();
+            case DataConverterBooleanNegateBase::typeKey:
+                return new DataConverterBooleanNegate();
             case DataConverterToStringBase::typeKey:
                 return new DataConverterToString();
             case DataBindContextBase::typeKey:
@@ -598,6 +636,8 @@ public:
                 return new CubicWeight();
             case TextModifierRangeBase::typeKey:
                 return new TextModifierRange();
+            case TextFollowPathModifierBase::typeKey:
+                return new TextFollowPathModifier();
             case TextStyleFeatureBase::typeKey:
                 return new TextStyleFeature();
             case TextVariationModifierBase::typeKey:
@@ -728,6 +768,9 @@ public:
             case FeatherBase::innerPropertyKey:
                 object->as<FeatherBase>()->inner(value);
                 break;
+            case PathBase::isHolePropertyKey:
+                object->as<PathBase>()->isHole(value);
+                break;
             case PointsPathBase::isClosedPropertyKey:
                 object->as<PointsPathBase>()->isClosed(value);
                 break;
@@ -748,6 +791,12 @@ public:
                 break;
             case TextModifierRangeBase::clampPropertyKey:
                 object->as<TextModifierRangeBase>()->clamp(value);
+                break;
+            case TextFollowPathModifierBase::radialPropertyKey:
+                object->as<TextFollowPathModifierBase>()->radial(value);
+                break;
+            case TextFollowPathModifierBase::orientPropertyKey:
+                object->as<TextFollowPathModifierBase>()->orient(value);
                 break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
@@ -780,9 +829,6 @@ public:
                 break;
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 object->as<ViewModelPropertyEnumSystemBase>()->enumType(value);
-                break;
-            case ViewModelBase::defaultInstanceIdPropertyKey:
-                object->as<ViewModelBase>()->defaultInstanceId(value);
                 break;
             case DataEnumSystemBase::enumTypePropertyKey:
                 object->as<DataEnumSystemBase>()->enumType(value);
@@ -1288,6 +1334,18 @@ public:
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 object->as<DataConverterStringTrimBase>()->trimType(value);
                 break;
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                object->as<FormulaTokenOperationBase>()->operationType(value);
+                break;
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                object->as<FormulaTokenFunctionBase>()->functionType(value);
+                break;
+            case DataConverterToStringBase::flagsPropertyKey:
+                object->as<DataConverterToStringBase>()->flags(value);
+                break;
+            case DataConverterToStringBase::decimalsPropertyKey:
+                object->as<DataConverterToStringBase>()->decimals(value);
+                break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
@@ -1326,6 +1384,9 @@ public:
                 break;
             case TextModifierRangeBase::runIdPropertyKey:
                 object->as<TextModifierRangeBase>()->runId(value);
+                break;
+            case TextTargetModifierBase::targetIdPropertyKey:
+                object->as<TextTargetModifierBase>()->targetId(value);
                 break;
             case TextStyleFeatureBase::tagPropertyKey:
                 object->as<TextStyleFeatureBase>()->tag(value);
@@ -1440,6 +1501,9 @@ public:
                 break;
             case DataConverterStringPadBase::textPropertyKey:
                 object->as<DataConverterStringPadBase>()->text(value);
+                break;
+            case DataConverterToStringBase::colorFormatPropertyKey:
+                object->as<DataConverterToStringBase>()->colorFormat(value);
                 break;
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 object->as<BindablePropertyStringBase>()->propertyValue(value);
@@ -1793,6 +1857,9 @@ public:
             case MeshVertexBase::vPropertyKey:
                 object->as<MeshVertexBase>()->v(value);
                 break;
+            case ShapeBase::lengthPropertyKey:
+                object->as<ShapeBase>()->length(value);
+                break;
             case StraightVertexBase::radiusPropertyKey:
                 object->as<StraightVertexBase>()->radius(value);
                 break;
@@ -1920,6 +1987,9 @@ public:
             case DataConverterInterpolatorBase::durationPropertyKey:
                 object->as<DataConverterInterpolatorBase>()->duration(value);
                 break;
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                object->as<FormulaTokenValueBase>()->operationValue(value);
+                break;
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
                 break;
@@ -1991,6 +2061,18 @@ public:
                 break;
             case TextModifierRangeBase::offsetPropertyKey:
                 object->as<TextModifierRangeBase>()->offset(value);
+                break;
+            case TextFollowPathModifierBase::startPropertyKey:
+                object->as<TextFollowPathModifierBase>()->start(value);
+                break;
+            case TextFollowPathModifierBase::endPropertyKey:
+                object->as<TextFollowPathModifierBase>()->end(value);
+                break;
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                object->as<TextFollowPathModifierBase>()->strength(value);
+                break;
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                object->as<TextFollowPathModifierBase>()->offset(value);
                 break;
             case TextVariationModifierBase::axisValuePropertyKey:
                 object->as<TextVariationModifierBase>()->axisValue(value);
@@ -2140,6 +2222,8 @@ public:
                 return object->as<StrokeBase>()->transformAffectsStroke();
             case FeatherBase::innerPropertyKey:
                 return object->as<FeatherBase>()->inner();
+            case PathBase::isHolePropertyKey:
+                return object->as<PathBase>()->isHole();
             case PointsPathBase::isClosedPropertyKey:
                 return object->as<PointsPathBase>()->isClosed();
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -2155,6 +2239,10 @@ public:
                     ->propertyValue();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->as<TextModifierRangeBase>()->clamp();
+            case TextFollowPathModifierBase::radialPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->radial();
+            case TextFollowPathModifierBase::orientPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->orient();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
         }
@@ -2183,8 +2271,6 @@ public:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->as<ViewModelPropertyEnumSystemBase>()
                     ->enumType();
-            case ViewModelBase::defaultInstanceIdPropertyKey:
-                return object->as<ViewModelBase>()->defaultInstanceId();
             case DataEnumSystemBase::enumTypePropertyKey:
                 return object->as<DataEnumSystemBase>()->enumType();
             case ViewModelPropertyViewModelBase::
@@ -2546,6 +2632,14 @@ public:
                 return object->as<DataConverterStringPadBase>()->padType();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->as<DataConverterStringTrimBase>()->trimType();
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                return object->as<FormulaTokenOperationBase>()->operationType();
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                return object->as<FormulaTokenFunctionBase>()->functionType();
+            case DataConverterToStringBase::flagsPropertyKey:
+                return object->as<DataConverterToStringBase>()->flags();
+            case DataConverterToStringBase::decimalsPropertyKey:
+                return object->as<DataConverterToStringBase>()->decimals();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -2572,6 +2666,8 @@ public:
                 return object->as<TextModifierRangeBase>()->modeValue();
             case TextModifierRangeBase::runIdPropertyKey:
                 return object->as<TextModifierRangeBase>()->runId();
+            case TextTargetModifierBase::targetIdPropertyKey:
+                return object->as<TextTargetModifierBase>()->targetId();
             case TextStyleFeatureBase::tagPropertyKey:
                 return object->as<TextStyleFeatureBase>()->tag();
             case TextStyleFeatureBase::featureValuePropertyKey:
@@ -2658,6 +2754,8 @@ public:
                 return object->as<DataConverterBase>()->name();
             case DataConverterStringPadBase::textPropertyKey:
                 return object->as<DataConverterStringPadBase>()->text();
+            case DataConverterToStringBase::colorFormatPropertyKey:
+                return object->as<DataConverterToStringBase>()->colorFormat();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyStringBase>()
                     ->propertyValue();
@@ -2904,6 +3002,8 @@ public:
                 return object->as<MeshVertexBase>()->u();
             case MeshVertexBase::vPropertyKey:
                 return object->as<MeshVertexBase>()->v();
+            case ShapeBase::lengthPropertyKey:
+                return object->as<ShapeBase>()->length();
             case StraightVertexBase::radiusPropertyKey:
                 return object->as<StraightVertexBase>()->radius();
             case CubicAsymmetricVertexBase::rotationPropertyKey:
@@ -2989,6 +3089,8 @@ public:
                 return object->as<DataConverterRangeMapperBase>()->maxOutput();
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return object->as<DataConverterInterpolatorBase>()->duration();
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                return object->as<FormulaTokenValueBase>()->operationValue();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()
                     ->propertyValue();
@@ -3038,6 +3140,14 @@ public:
                 return object->as<TextModifierRangeBase>()->falloffTo();
             case TextModifierRangeBase::offsetPropertyKey:
                 return object->as<TextModifierRangeBase>()->offset();
+            case TextFollowPathModifierBase::startPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->start();
+            case TextFollowPathModifierBase::endPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->end();
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->strength();
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->offset();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->as<TextVariationModifierBase>()->axisValue();
             case TextModifierGroupBase::originXPropertyKey:
@@ -3117,6 +3227,7 @@ public:
             case DashBase::lengthIsPercentagePropertyKey:
             case StrokeBase::transformAffectsStrokePropertyKey:
             case FeatherBase::innerPropertyKey:
+            case PathBase::isHolePropertyKey:
             case PointsPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
@@ -3124,6 +3235,8 @@ public:
             case LayoutComponentBase::clipPropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
+            case TextFollowPathModifierBase::radialPropertyKey:
+            case TextFollowPathModifierBase::orientPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -3133,7 +3246,6 @@ public:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
-            case ViewModelBase::defaultInstanceIdPropertyKey:
             case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
@@ -3286,6 +3398,10 @@ public:
             case DataConverterStringPadBase::lengthPropertyKey:
             case DataConverterStringPadBase::padTypePropertyKey:
             case DataConverterStringTrimBase::trimTypePropertyKey:
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+            case DataConverterToStringBase::flagsPropertyKey:
+            case DataConverterToStringBase::decimalsPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3299,6 +3415,7 @@ public:
             case TextModifierRangeBase::typeValuePropertyKey:
             case TextModifierRangeBase::modeValuePropertyKey:
             case TextModifierRangeBase::runIdPropertyKey:
+            case TextTargetModifierBase::targetIdPropertyKey:
             case TextStyleFeatureBase::tagPropertyKey:
             case TextStyleFeatureBase::featureValuePropertyKey:
             case TextVariationModifierBase::axisTagPropertyKey:
@@ -3335,6 +3452,7 @@ public:
             case OpenUrlEventBase::urlPropertyKey:
             case DataConverterBase::namePropertyKey:
             case DataConverterStringPadBase::textPropertyKey:
+            case DataConverterToStringBase::colorFormatPropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -3451,6 +3569,7 @@ public:
             case VertexBase::yPropertyKey:
             case MeshVertexBase::uPropertyKey:
             case MeshVertexBase::vPropertyKey:
+            case ShapeBase::lengthPropertyKey:
             case StraightVertexBase::radiusPropertyKey:
             case CubicAsymmetricVertexBase::rotationPropertyKey:
             case CubicAsymmetricVertexBase::inDistancePropertyKey:
@@ -3493,6 +3612,7 @@ public:
             case DataConverterRangeMapperBase::minOutputPropertyKey:
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
             case DataConverterInterpolatorBase::durationPropertyKey:
+            case FormulaTokenValueBase::operationValuePropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
@@ -3517,6 +3637,10 @@ public:
             case TextModifierRangeBase::falloffFromPropertyKey:
             case TextModifierRangeBase::falloffToPropertyKey:
             case TextModifierRangeBase::offsetPropertyKey:
+            case TextFollowPathModifierBase::startPropertyKey:
+            case TextFollowPathModifierBase::endPropertyKey:
+            case TextFollowPathModifierBase::strengthPropertyKey:
+            case TextFollowPathModifierBase::offsetPropertyKey:
             case TextVariationModifierBase::axisValuePropertyKey:
             case TextModifierGroupBase::originXPropertyKey:
             case TextModifierGroupBase::originYPropertyKey:
@@ -3625,6 +3749,8 @@ public:
                 return object->is<StrokeBase>();
             case FeatherBase::innerPropertyKey:
                 return object->is<FeatherBase>();
+            case PathBase::isHolePropertyKey:
+                return object->is<PathBase>();
             case PointsPathBase::isClosedPropertyKey:
                 return object->is<PointsPathBase>();
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -3639,6 +3765,10 @@ public:
                 return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextFollowPathModifierBase::radialPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::orientPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -3655,8 +3785,6 @@ public:
                 return object->is<ViewModelInstanceEnumBase>();
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->is<ViewModelPropertyEnumSystemBase>();
-            case ViewModelBase::defaultInstanceIdPropertyKey:
-                return object->is<ViewModelBase>();
             case DataEnumSystemBase::enumTypePropertyKey:
                 return object->is<DataEnumSystemBase>();
             case ViewModelPropertyViewModelBase::
@@ -3959,6 +4087,14 @@ public:
                 return object->is<DataConverterStringPadBase>();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->is<DataConverterStringTrimBase>();
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                return object->is<FormulaTokenOperationBase>();
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                return object->is<FormulaTokenFunctionBase>();
+            case DataConverterToStringBase::flagsPropertyKey:
+                return object->is<DataConverterToStringBase>();
+            case DataConverterToStringBase::decimalsPropertyKey:
+                return object->is<DataConverterToStringBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -3985,6 +4121,8 @@ public:
                 return object->is<TextModifierRangeBase>();
             case TextModifierRangeBase::runIdPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextTargetModifierBase::targetIdPropertyKey:
+                return object->is<TextTargetModifierBase>();
             case TextStyleFeatureBase::tagPropertyKey:
                 return object->is<TextStyleFeatureBase>();
             case TextStyleFeatureBase::featureValuePropertyKey:
@@ -4053,6 +4191,8 @@ public:
                 return object->is<DataConverterBase>();
             case DataConverterStringPadBase::textPropertyKey:
                 return object->is<DataConverterStringPadBase>();
+            case DataConverterToStringBase::colorFormatPropertyKey:
+                return object->is<DataConverterToStringBase>();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyStringBase>();
             case TextValueRunBase::textPropertyKey:
@@ -4281,6 +4421,8 @@ public:
                 return object->is<MeshVertexBase>();
             case MeshVertexBase::vPropertyKey:
                 return object->is<MeshVertexBase>();
+            case ShapeBase::lengthPropertyKey:
+                return object->is<ShapeBase>();
             case StraightVertexBase::radiusPropertyKey:
                 return object->is<StraightVertexBase>();
             case CubicAsymmetricVertexBase::rotationPropertyKey:
@@ -4365,6 +4507,8 @@ public:
                 return object->is<DataConverterRangeMapperBase>();
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return object->is<DataConverterInterpolatorBase>();
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                return object->is<FormulaTokenValueBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
             case NestedArtboardLeafBase::alignmentXPropertyKey:
@@ -4413,6 +4557,14 @@ public:
                 return object->is<TextModifierRangeBase>();
             case TextModifierRangeBase::offsetPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextFollowPathModifierBase::startPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::endPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->is<TextVariationModifierBase>();
             case TextModifierGroupBase::originXPropertyKey:

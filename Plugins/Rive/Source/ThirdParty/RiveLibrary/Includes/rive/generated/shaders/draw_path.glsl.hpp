@@ -24,20 +24,26 @@ ATTR_BLOCK_END
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
-#ifndef _EXPORTED_RENDER_MODE_MSAA
+
+#ifdef _EXPORTED_ATLAS_BLIT
+NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
+#elif !defined(_EXPORTED_RENDER_MODE_MSAA)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
 _EXPORTED_OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
+#elif defined(_EXPORTED_ENABLE_FEATHER)
+NO_PERSPECTIVE VARYING(2, float4, v_coverages);
 #else
-NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
-#endif
+NO_PERSPECTIVE VARYING(2, half2, v_coverages);
+#endif //@DRAW_INTERIOR_TRIANGLES
 _EXPORTED_OPTIONALLY_FLAT VARYING(3, half, v_pathID);
+#endif // !@RENDER_MODE_MSAA
+
 #ifdef _EXPORTED_ENABLE_CLIPPING
 _EXPORTED_OPTIONALLY_FLAT VARYING(4, half, v_clipID);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #endif
-#endif // !RENDER_MODE_MSAA
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
 _EXPORTED_OPTIONALLY_FLAT VARYING(6, half, v_blendMode);
 #endif
@@ -54,20 +60,26 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
     VARYING_INIT(v_paint, float4);
-#ifndef RENDER_MODE_MSAA
+
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_INIT(v_atlasCoord, float2);
+#elif !defined(_EXPORTED_RENDER_MODE_MSAA)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
+#elif defined(_EXPORTED_ENABLE_FEATHER)
+    VARYING_INIT(v_coverages, float4);
 #else
-    VARYING_INIT(v_edgeDistance, half2);
-#endif
+    VARYING_INIT(v_coverages, half2);
+#endif //@DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_pathID, half);
+#endif // !@RENDER_MODE_MSAA
+
 #ifdef _EXPORTED_ENABLE_CLIPPING
     VARYING_INIT(v_clipID, half);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
 #endif
-#endif // !RENDER_MODE_MSAA
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     VARYING_INIT(v_blendMode, half);
 #endif
@@ -79,12 +91,27 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ushort pathZIndex;
 #endif
 
-#ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
+#ifdef _EXPORTED_ATLAS_BLIT
     vertexPosition =
-        unpack_interior_triangle_vertex(_EXPORTED_a_triangleVertex,
-                                        pathID,
-                                        v_windingWeight VERTEX_CONTEXT_UNPACK);
+        unpack_atlas_coverage_vertex(_EXPORTED_a_triangleVertex,
+                                     pathID,
+#ifdef _EXPORTED_RENDER_MODE_MSAA
+                                     pathZIndex,
+#endif
+                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
+#elif defined(_EXPORTED_DRAW_INTERIOR_TRIANGLES)
+    vertexPosition = unpack_interior_triangle_vertex(_EXPORTED_a_triangleVertex,
+                                                     pathID
+#ifdef _EXPORTED_RENDER_MODE_MSAA
+                                                     ,
+                                                     pathZIndex
 #else
+                                                     ,
+                                                     v_windingWeight
+#endif
+                                                         VERTEX_CONTEXT_UNPACK);
+#else // !@DRAW_INTERIOR_TRIANGLES
+    float4 coverages;
     shouldDiscardVertex =
         !unpack_tessellated_path_vertex(_EXPORTED_a_patchVertexData,
                                         _EXPORTED_a_mirroredVertexData,
@@ -93,17 +120,24 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                         vertexPosition
 #ifndef _EXPORTED_RENDER_MODE_MSAA
                                         ,
-                                        v_edgeDistance
+                                        coverages
 #else
                                         ,
                                         pathZIndex
 #endif
                                             VERTEX_CONTEXT_UNPACK);
+#ifndef _EXPORTED_RENDER_MODE_MSAA
+#ifdef _EXPORTED_ENABLE_FEATHER
+    v_coverages = coverages;
+#else
+    v_coverages.xy = cast_float2_to_half2(coverages.xy);
+#endif
+#endif
 #endif // !DRAW_INTERIOR_TRIANGLES
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(_EXPORTED_paintBuffer, pathID);
 
-#ifndef _EXPORTED_RENDER_MODE_MSAA
+#if !defined(_EXPORTED_ATLAS_BLIT) && !defined(_EXPORTED_RENDER_MODE_MSAA)
     // Encode the integral pathID as a "half" that we know the hardware will see
     // as a unique value in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
@@ -111,7 +145,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Indicate even-odd fill rule by making pathID negative.
     if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
         v_pathID = -v_pathID;
-#endif // !RENDER_MODE_MSAA
+#endif // !@ATLAS_BLIT && !@RENDER_MODE_MSAA
 
     uint paintType = paintData.x & 0xfu;
 #ifdef _EXPORTED_ENABLE_CLIPPING
@@ -155,11 +189,11 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                               clipRectInverseTranslate.xy,
                                               fragCoord);
-#else  // RENDER_MODE_MSAA
+#else  // @RENDER_MODE_MSAA
         set_clip_rect_plane_distances(clipRectInverseMatrix,
                                       clipRectInverseTranslate.xy,
                                       fragCoord);
-#endif // RENDER_MODE_MSAA
+#endif // @RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
 
@@ -257,20 +291,25 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-#ifndef _EXPORTED_RENDER_MODE_MSAA
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_PACK(v_atlasCoord);
+#elif !defined(_EXPORTED_RENDER_MODE_MSAA)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_windingWeight);
+#elif defined(_EXPORTED_ENABLE_FEATHER)
+    VARYING_PACK(v_coverages);
 #else
-    VARYING_PACK(v_edgeDistance);
-#endif
+    VARYING_PACK(v_coverages);
+#endif //@DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_pathID);
+#endif // !@RENDER_MODE_MSAA
+
 #ifdef _EXPORTED_ENABLE_CLIPPING
     VARYING_PACK(v_clipID);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
 #endif
-#endif // !RENDER_MODE_MSAA
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     VARYING_PACK(v_blendMode);
 #endif
@@ -279,23 +318,6 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef _EXPORTED_FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, _EXPORTED_gradTexture);
-#if defined(_EXPORTED_ENABLE_FEATHER)
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, _EXPORTED_featherTexture);
-#endif
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, _EXPORTED_imageTexture);
-#if defined(_EXPORTED_RENDER_MODE_MSAA) && defined(_EXPORTED_ENABLE_ADVANCED_BLEND)
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, _EXPORTED_dstColorTexture);
-#endif
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#if defined(_EXPORTED_ENABLE_FEATHER)
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
@@ -347,12 +369,20 @@ PLS_BLOCK_END
 PLS_MAIN(_EXPORTED_drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
+
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_UNPACK(v_atlasCoord, float2);
+#elif !defined(_EXPORTED_RENDER_MODE_MSAA)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
+#elif defined(_EXPORTED_ENABLE_FEATHER)
+    VARYING_UNPACK(v_coverages, float4);
 #else
-    VARYING_UNPACK(v_edgeDistance, half2);
-#endif
+    VARYING_UNPACK(v_coverages, half2);
+#endif //@DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_pathID, half);
+#endif // !@RENDER_MODE_MSAA
+
 #ifdef _EXPORTED_ENABLE_CLIPPING
     VARYING_UNPACK(v_clipID, half);
 #endif
@@ -363,11 +393,17 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
-#ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
+#if !defined(_EXPORTED_DRAW_INTERIOR_TRIANGLES) || defined(_EXPORTED_ATLAS_BLIT)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_BEGIN;
 #endif
 
+    half coverage;
+#ifdef _EXPORTED_ATLAS_BLIT
+    coverage = filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
     half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.y;
     half coverageCount =
@@ -377,38 +413,35 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
     coverageCount += v_windingWeight;
     PLS_PRESERVE_UI(coverageCountBuffer);
 #else
-    if (is_stroke(v_edgeDistance))
+    if (is_stroke(v_coverages))
     {
         half fragCoverage;
 #ifdef _EXPORTED_ENABLE_FEATHER
-        if (_EXPORTED_ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        if (_EXPORTED_ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = feathered_stroke_coverage(
-                v_edgeDistance,
-                SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif // @ENABLE_FEATHER
         {
-            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+            fragCoverage = min(v_coverages.x, v_coverages.y);
         }
         coverageCount = max(fragCoverage, coverageCount);
     }
-    else // Fill. (Back-face culling handles the sign of v_edgeDistance.x.)
+    else // Fill. (Back-face culling handles the sign of v_coverages.x.)
     {
         half fragCoverage;
-#if defined(_EXPORTED_CLOCKWISE_FILL) && defined(_EXPORTED_ENABLE_FEATHER)
-        if (_EXPORTED_CLOCKWISE_FILL && _EXPORTED_ENABLE_FEATHER &&
-            is_feathered_fill(v_edgeDistance))
+#if defined(_EXPORTED_ENABLE_FEATHER)
+        if (_EXPORTED_ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
-                SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif // @CLOCKWISE_FILL && @ENABLE_FEATHER
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         coverageCount += fragCoverage;
     }
@@ -416,10 +449,9 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
     // Save the updated coverage.
     PLS_STOREUI(coverageCountBuffer,
                 packHalf2x16(make_half2(coverageCount, v_pathID)));
-#endif
+#endif // !@DRAW_INTERIOR_TRIANGLES
 
     // Convert coverageCount to coverage.
-    half coverage;
 #ifdef _EXPORTED_CLOCKWISE_FILL
     if (_EXPORTED_CLOCKWISE_FILL)
     {
@@ -438,6 +470,7 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         // This also caps stroke coverage, which can be >1.
         coverage = min(coverage, make_half(1.));
     }
+#endif // !@ATLAS_BLIT
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
     if (_EXPORTED_ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
@@ -520,6 +553,9 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         color.w *= coverage;
 
         half4 dstColor;
+#ifdef _EXPORTED_ATLAS_BLIT
+        dstColor = PLS_LOAD4F(colorBuffer);
+#else
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
@@ -540,6 +576,7 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
             PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
         }
+#endif // @ATLAS_BLIT
 
         // Blend with the framebuffer color.
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
@@ -561,7 +598,7 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         PLS_PRESERVE_UI(clipBuffer);
     }
 
-#ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
+#if !defined(_EXPORTED_DRAW_INTERIOR_TRIANGLES) || defined(_EXPORTED_ATLAS_BLIT)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_END;
 #endif
@@ -569,16 +606,24 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // RENDER_MODE_MSAA
+#else // @RENDER_MODE_MSAA
 
 FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_UNPACK(v_atlasCoord, float2);
+#endif
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
     half4 color = find_paint_color(v_paint);
+#ifdef _EXPORTED_ATLAS_BLIT
+    color.w *= filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#endif
 
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)

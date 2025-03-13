@@ -9,14 +9,45 @@ const char common[] = R"===(/*
  * Copyright 2022 Rive
  */
 
-// Common functions shared by multiple shaders.
-#define PI  float(3.141592653589793238)
+// Common definitions and functions shared by multiple shaders.
+
+#define PI  3.14159265359
+#define _2PI  6.28318530718
+#define PI_OVER_2  1.57079632679
+#define ONE_OVER_SQRT_2  0.70710678118 // 1/sqrt(2)
 
 #ifndef _EXPORTED_RENDER_MODE_MSAA
 #define AA_RADIUS  float(.5)
 #else
 #define AA_RADIUS  float(.0)
 #endif
+
+// Defined as a macro because 'uniforms' isn't always available at global scope.
+#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                \
+    pixel_coord_to_clip_coord(COORD,                                           \
+                              uniforms.renderTargetInverseViewportX,           \
+                              uniforms.renderTargetInverseViewportY)
+
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+#define FEATHER(X)                                                              \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(_EXPORTED_featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_FUNCTION_ARRAY_INDEX,                  \
+                                float(FEATHER_FUNCTION_ARRAY_INDEX),           \
+                                .0)                                            \
+        .x
+#define INVERSE_FEATHER(X)                                                      \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(_EXPORTED_featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
+                                float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
+                                .0)                                            \
+        .x
 
 #ifdef GLSL
 // GLSL has different semantics around precision. Normalize type conversions
@@ -60,6 +91,8 @@ INLINE half2 make_half2(half x)
     return ret;
 }
 
+INLINE float2 make_float2(float x) { return float2(x, x); }
+
 INLINE half3 make_half3(half x, half y, half z)
 {
     half3 ret;
@@ -95,6 +128,8 @@ INLINE half4 make_half4(half x)
     ret.x = x, ret.y = x, ret.z = x, ret.w = x;
     return ret;
 }
+
+INLINE bool2 make_bool2(bool b) { return bool2(b, b); }
 
 INLINE half3x3 make_half3x3(half3 a, half3 b, half3 c)
 {
@@ -179,14 +214,18 @@ float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
 uint renderTargetWidth;
 uint renderTargetHeight;
-uint colorClearValue;          // Only used if clears are implemented as draws.
-uint coverageClearValue;       // Only used if clears are implemented as draws.
-int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is
-                               // a clear. (LTRB.)
+uint colorClearValue;           // Only used if clears are implemented as draws.
+uint coverageClearValue;        // Only used if clears are implemented as draws.
+int4 renderTargetUpdateBounds;  // drawBounds, or renderTargetBounds if there is
+                                // a clear. (LTRB.)
+float2 atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
+float2 atlasContentInverseViewport; // 2 / atlasContentBounds
 uint coverageBufferPrefix;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
                         // compliant).
 float vertexDiscardValue;
+// Debugging.
+uint wireframeEnabled;
 UNIFORM_BLOCK_END(uniforms)
 #endif
 
@@ -201,12 +240,6 @@ INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
                   0.,
                   1.);
 }
-
-// Defined as a macro because 'uniforms' isn't always available at global scope.
-#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                \
-    pixel_coord_to_clip_coord(COORD,                                           \
-                              uniforms.renderTargetInverseViewportX,           \
-                              uniforms.renderTargetInverseViewportY)
 
 #ifndef _EXPORTED_RENDER_MODE_MSAA
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to

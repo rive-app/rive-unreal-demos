@@ -20,7 +20,11 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
+#ifdef _EXPORTED_ENABLE_FEATHER
+NO_PERSPECTIVE VARYING(0, float4, v_coverages);
+#else
+NO_PERSPECTIVE VARYING(0, half2, v_coverages);
+#endif
 FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
@@ -30,19 +34,29 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_mirroredVertexData, float4);
 
-    VARYING_INIT(v_edgeDistance, half2);
+#ifdef _EXPORTED_ENABLE_FEATHER
+    VARYING_INIT(v_coverages, float4);
+#else
+    VARYING_INIT(v_coverages, half2);
+#endif
     VARYING_INIT(v_pathID, ushort);
 
     float4 pos;
     uint pathID;
     float2 vertexPosition;
+    float4 coverages;
     if (unpack_tessellated_path_vertex(_EXPORTED_a_patchVertexData,
                                        _EXPORTED_a_mirroredVertexData,
                                        _instanceID,
                                        pathID,
                                        vertexPosition,
-                                       v_edgeDistance VERTEX_CONTEXT_UNPACK))
+                                       coverages VERTEX_CONTEXT_UNPACK))
     {
+#ifdef _EXPORTED_ENABLE_FEATHER
+        v_coverages = coverages;
+#else
+        v_coverages.xy = cast_float2_to_half2(coverages.xy);
+#endif
         v_pathID = cast_uint_to_ushort(pathID);
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
@@ -54,7 +68,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                      uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(v_edgeDistance);
+    VARYING_PACK(v_coverages);
     VARYING_PACK(v_pathID);
     EMIT_VERTEX(pos);
 }
@@ -69,7 +83,11 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
+#ifdef _EXPORTED_ATLAS_BLIT
+NO_PERSPECTIVE VARYING(0, float2, v_atlasCoord);
+#else
 _EXPORTED_OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
+#endif
 FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
@@ -78,18 +96,34 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_triangleVertex, float3);
 
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_INIT(v_atlasCoord, float2);
+#else
     VARYING_INIT(v_windingWeight, half);
+#endif
     VARYING_INIT(v_pathID, ushort);
 
     uint pathID;
-    float2 vertexPosition =
+    float2 vertexPosition;
+#ifdef _EXPORTED_ATLAS_BLIT
+    vertexPosition =
+        unpack_atlas_coverage_vertex(_EXPORTED_a_triangleVertex,
+                                     pathID,
+                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
+#else
+    vertexPosition =
         unpack_interior_triangle_vertex(_EXPORTED_a_triangleVertex,
                                         pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
+#endif
     v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_PACK(v_atlasCoord);
+#else
     VARYING_PACK(v_windingWeight);
+#endif
     VARYING_PACK(v_pathID);
     EMIT_VERTEX(pos);
 }
@@ -112,12 +146,6 @@ NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef _EXPORTED_VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN
-VERTEX_TEXTURE_BLOCK_END
-
-VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
-VERTEX_STORAGE_BUFFER_BLOCK_END
-
 IMAGE_RECT_VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, _EXPORTED_a_imageRectVertex, float4);
@@ -265,12 +293,6 @@ VARYING_BLOCK_BEGIN
 VARYING_BLOCK_END
 
 #ifdef _EXPORTED_VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN
-VERTEX_TEXTURE_BLOCK_END
-
-VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
-VERTEX_STORAGE_BUFFER_BLOCK_END
-
 VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     int2 coord;
@@ -289,24 +311,6 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef _EXPORTED_FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, _EXPORTED_gradTexture);
-#ifdef _EXPORTED_ENABLE_FEATHER
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, _EXPORTED_featherTexture);
-#endif
-#ifdef NEEDS_IMAGE_TEXTURE
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, _EXPORTED_imageTexture);
-#endif
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#ifdef _EXPORTED_ENABLE_FEATHER
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-#ifdef NEEDS_IMAGE_TEXTURE
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-#endif
-
 PLS_BLOCK_BEGIN
 // We only write the framebuffer as a storage texture when there are blend
 // modes. Otherwise, we render to it as a normal color attachment.
@@ -547,29 +551,32 @@ INLINE void emit_pls_clip(CLIP_VALUE_TYPE fragClipOut PLS_CONTEXT_DECL)
 #ifdef _EXPORTED_DRAW_PATH
 ATOMIC_PLS_MAIN(_EXPORTED_drawFragmentMain)
 {
-    VARYING_UNPACK(v_edgeDistance, half2);
+#ifdef _EXPORTED_ENABLE_FEATHER
+    VARYING_UNPACK(v_coverages, float4);
+#else
+    VARYING_UNPACK(v_coverages, half2);
+#endif
     VARYING_UNPACK(v_pathID, ushort);
 
     half fragmentCoverage;
 #ifdef _EXPORTED_ENABLE_FEATHER
-    if (_EXPORTED_ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+    if (_EXPORTED_ENABLE_FEATHER && is_feathered_stroke(v_coverages))
     {
-        fragmentCoverage = feathered_stroke_coverage(
-            v_edgeDistance,
-            SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+        fragmentCoverage =
+            eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
     }
-    else if (_EXPORTED_ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+    else if (_EXPORTED_ENABLE_FEATHER && is_feathered_fill(v_coverages))
     {
-        fragmentCoverage = feathered_fill_coverage(
-            v_edgeDistance,
-            SAMPLED_R16F(_EXPORTED_featherTexture, featherSampler));
+        fragmentCoverage =
+            eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
     }
     else
 #endif
     {
         // Cover stroke and fill both in a branchless expression.
         fragmentCoverage =
-            min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
+            min(min(make_half(v_coverages.x), abs(make_half(v_coverages.y))),
+                make_half(1.));
     }
 
     // Since v_pathID increases monotonically with every draw, and since it
@@ -595,7 +602,7 @@ ATOMIC_PLS_MAIN(_EXPORTED_drawFragmentMain)
         // This is not the first fragment of the current path to touch this
         // pixel. We already resolved the previous path, so just update coverage
         // (if we're a fill) and move on.
-        if (!is_stroke(v_edgeDistance))
+        if (!is_stroke(v_coverages))
         {
             // Only apply the effect of the min() the first time we cross into a
             // path.
@@ -641,7 +648,11 @@ ATOMIC_PLS_MAIN(_EXPORTED_drawFragmentMain)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
 ATOMIC_PLS_MAIN(_EXPORTED_drawFragmentMain)
 {
+#ifdef _EXPORTED_ATLAS_BLIT
+    VARYING_UNPACK(v_atlasCoord, float2);
+#else
     VARYING_UNPACK(v_windingWeight, half);
+#endif
     VARYING_UNPACK(v_pathID, ushort);
 
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
@@ -651,22 +662,41 @@ ATOMIC_PLS_MAIN(_EXPORTED_drawFragmentMain)
     // Update coverageAtomicBuffer with the coverage weight of the current
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
-    int coverageDeltaFixed =
-        int(round(v_windingWeight * FIXED_COVERAGE_PRECISION));
-    uint currPathCoverageData =
-        lastPathID == v_pathID
-            ? lastCoverageData
-            : (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) +
-                  FIXED_COVERAGE_ZERO_UINT;
+    uint currPathCoverageData;
+#ifndef _EXPORTED_ATLAS_BLIT
+    if (lastPathID == v_pathID)
+    {
+        currPathCoverageData = lastCoverageData;
+    }
+    else
+#endif
+    {
+        currPathCoverageData =
+            (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) +
+            FIXED_COVERAGE_ZERO_UINT;
+    }
+
+    half coverage;
+#ifdef _EXPORTED_ATLAS_BLIT
+    coverage = filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
+    coverage = v_windingWeight;
+#endif
+
+    int coverageDeltaFixed = int(round(coverage * FIXED_COVERAGE_PRECISION));
     PLS_STOREUI_ATOMIC(coverageAtomicBuffer,
                        currPathCoverageData + uint(coverageDeltaFixed));
 
+#ifndef _EXPORTED_ATLAS_BLIT
     if (lastPathID == v_pathID)
     {
         // This is not the first fragment of the current path to touch this
         // pixel. We already resolved the previous path, so just move on.
         discard;
     }
+#endif
 
     // We crossed into a new path! Resolve the previous path now that we know
     // its exact coverage.

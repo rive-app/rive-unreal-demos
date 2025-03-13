@@ -66,6 +66,7 @@ private:
     std::vector<DataBind*> m_DataBinds;
     std::vector<DataBind*> m_AllDataBinds;
     DataContext* m_DataContext = nullptr;
+    bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
@@ -80,6 +81,9 @@ private:
     Artboard* parentArtboard() const;
     NestedArtboard* m_host = nullptr;
     bool sharesLayoutWithHost() const;
+    void cloneObjectDataBinds(const Core* object,
+                              Core* clone,
+                              Artboard* artboard) const;
 
     // Variable that tracks whenever the draw order changes. It is used by the
     // state machine controllers to sort their hittable components when they are
@@ -208,12 +212,12 @@ public:
     void dataContext(DataContext* dataContext);
     void internalDataContext(DataContext* dataContext, bool isRoot);
     void clearDataContext();
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                    DataContext* parent);
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                    DataContext* parent,
-                                    bool isRoot);
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                               DataContext* parent);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                               DataContext* parent,
+                               bool isRoot);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds();
@@ -307,6 +311,7 @@ public:
         artboardClone->m_IsInstance = true;
         artboardClone->m_originalWidth = m_originalWidth;
         artboardClone->m_originalHeight = m_originalHeight;
+        cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
 
         std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
         cloneObjects.push_back(artboardClone.get());
@@ -322,23 +327,9 @@ public:
                                                          : object->clone());
                 // For each object, clone its data bind objects and target their
                 // clones
-                for (auto dataBind : m_DataBinds)
-                {
-                    if (dataBind->target() == object)
-                    {
-                        auto dataBindClone =
-                            static_cast<DataBind*>(dataBind->clone());
-                        dataBindClone->target(cloneObjects.back());
-                        if (dataBind->converter() != nullptr)
-                        {
-
-                            dataBindClone->converter(dataBind->converter()
-                                                         ->clone()
-                                                         ->as<DataConverter>());
-                        }
-                        artboardClone->m_DataBinds.push_back(dataBindClone);
-                    }
-                }
+                cloneObjectDataBinds(object,
+                                     cloneObjects.back(),
+                                     artboardClone.get());
             }
         }
 
@@ -420,6 +411,7 @@ public:
     void onLayoutDirty(ArtboardCallback callback)
     {
         m_layoutDirtyCallback = callback;
+        addDirt(ComponentDirt::Components);
     }
 #endif
 };
