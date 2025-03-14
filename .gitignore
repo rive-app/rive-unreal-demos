@@ -1,5 +1,9 @@
 # Visual Studio 2015 user specific files
 .vs/
+.vsconfig
+
+# Mac files
+.DS_Store
 
 # Mac files
 .DS_Store
