@@ -1175,7 +1175,6 @@ void URiveArtboard::Initialize_Internal(const rive::Artboard* InNativeArtboard)
     for (const rive::Event* Event : Events)
     {
         EventNames.Add(Event->name().c_str());
-        //UE_LOG(LogRive, Log, TEXT("Event: %hs"), Event->name().c_str());
     }
 
     bIsInitialized = true;

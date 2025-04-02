@@ -13,6 +13,12 @@ class ViewModelInstanceValueRuntime;
 class URiveViewModelInstance;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnValueChangedDelegate);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FOnAddCallbackPropertyDelegate,
+                                  URiveViewModelInstanceValue*,
+                                  Value);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FOnRemoveCallbackPropertyDelegate,
+                                  URiveViewModelInstanceValue*,
+                                  Value);
 
 UCLASS(BlueprintType)
 class RIVE_API URiveViewModelInstanceValue : public UObject
@@ -21,8 +27,7 @@ class RIVE_API URiveViewModelInstanceValue : public UObject
 
 public:
     void Initialize(
-        rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue,
-        URiveViewModelInstance* InRoot);
+        rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue);
 
     void HandleCallbacks();
     void ClearCallbacks();
@@ -36,6 +41,11 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Rive")
     void UnbindAllFromValueChange();
 
+    UPROPERTY()
+    FOnAddCallbackPropertyDelegate OnAddCallbackProperty;
+    UPROPERTY()
+    FOnRemoveCallbackPropertyDelegate OnRemoveCallbackProperty;
+
 protected:
     virtual void BeginDestroy() override;
 
@@ -48,8 +58,5 @@ protected:
     FOnValueChangedDelegate OnValueChanged;
 
 private:
-    UPROPERTY()
-    URiveViewModelInstance* Root = nullptr;
-
     rive::ViewModelInstanceValueRuntime* ViewModelInstanceValuePtr = nullptr;
 };

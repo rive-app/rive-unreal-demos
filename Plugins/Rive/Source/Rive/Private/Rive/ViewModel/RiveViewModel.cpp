@@ -8,26 +8,25 @@ THIRD_PARTY_INCLUDES_END
 
 void URiveViewModel::Initialize(rive::ViewModelRuntime* InViewModel)
 {
-    ViewModelRuntimePtr = TUniquePtr<rive::ViewModelRuntime>(InViewModel);
+    ViewModelRuntimePtr = InViewModel;
 }
 
 FString URiveViewModel::GetName() const
 {
-    return ViewModelRuntimePtr.IsValid()
-               ? FString(ViewModelRuntimePtr->name().c_str())
-               : FString(TEXT(""));
+    return ViewModelRuntimePtr ? FString(ViewModelRuntimePtr->name().c_str())
+                               : FString(TEXT(""));
 }
 
 int32 URiveViewModel::GetInstanceCount() const
 {
-    return ViewModelRuntimePtr.IsValid()
+    return ViewModelRuntimePtr
                ? static_cast<int32>(ViewModelRuntimePtr->instanceCount())
                : 0;
 }
 
 URiveViewModelInstance* URiveViewModel::CreateDefaultInstance() const
 {
-    if (ViewModelRuntimePtr.IsValid())
+    if (ViewModelRuntimePtr)
     {
         rive::ViewModelInstanceRuntime* DefaultInstance =
             ViewModelRuntimePtr->createDefaultInstance();
@@ -62,7 +61,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstance()
 TArray<FString> URiveViewModel::GetInstanceNames() const
 {
     TArray<FString> InstanceNames;
-    if (ViewModelRuntimePtr.IsValid())
+    if (ViewModelRuntimePtr)
     {
         auto Names = ViewModelRuntimePtr->instanceNames();
         for (const auto& Name : Names)
@@ -76,7 +75,7 @@ TArray<FString> URiveViewModel::GetInstanceNames() const
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
     int32 Index) const
 {
-    if (!ViewModelRuntimePtr.IsValid())
+    if (!ViewModelRuntimePtr)
     {
         UE_LOG(LogRive, Warning, TEXT("ViewModelRuntimePtr is null."));
         return nullptr;
@@ -116,7 +115,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
     const FString& Name) const
 {
-    if (!ViewModelRuntimePtr.IsValid())
+    if (!ViewModelRuntimePtr)
     {
         UE_LOG(LogRive, Warning, TEXT("ViewModelRuntimePtr is null."));
         return nullptr;
@@ -143,7 +142,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
 TArray<FString> URiveViewModel::GetPropertyNames() const
 {
     TArray<FString> PropertyNames;
-    if (ViewModelRuntimePtr.IsValid())
+    if (ViewModelRuntimePtr)
     {
         auto Properties = ViewModelRuntimePtr->properties();
         for (const auto& Property : Properties)
@@ -156,7 +155,7 @@ TArray<FString> URiveViewModel::GetPropertyNames() const
 
 rive::DataType URiveViewModel::GetPropertyTypeByName(const FString& Name) const
 {
-    if (ViewModelRuntimePtr.IsValid())
+    if (ViewModelRuntimePtr)
     {
         auto Properties = ViewModelRuntimePtr->properties();
         for (auto& Property : Properties)

@@ -15,28 +15,14 @@ THIRD_PARTY_INCLUDES_END
 using namespace rive;
 
 void URiveViewModelInstance::Initialize(
-    rive::ViewModelInstanceRuntime* InViewModelInstance,
-    URiveViewModelInstance* InRoot)
+    rive::ViewModelInstanceRuntime* InViewModelInstance)
 {
     ViewModelInstancePtr = InViewModelInstance;
-    Root = InRoot == nullptr ? this : InRoot;
 }
 
 void URiveViewModelInstance::BeginDestroy()
 {
-    // Only delete the root pointer, others are handled by
-    // the wrapped class.
-    if (Root == this)
-    {
-        ClearCallbacks();
-
-        if (ViewModelInstancePtr)
-        {
-            delete ViewModelInstancePtr;
-            ViewModelInstancePtr = nullptr;
-        }
-    }
-
+    ClearCallbacks();
     Properties.Empty();
 
     Super::BeginDestroy();
@@ -45,48 +31,26 @@ void URiveViewModelInstance::BeginDestroy()
 void URiveViewModelInstance::AddCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
-    if (Root != this)
-    {
-        Root->AddCallbackProperty(Property);
-    }
-    else
-    {
-        CallbackProperties.AddUnique(Property);
-    }
+    CallbackProperties.AddUnique(Property);
 }
 
 void URiveViewModelInstance::RemoveCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
-    if (Root != this)
-    {
-        Root->RemoveCallbackProperty(Property);
-    }
-    else
-    {
-        CallbackProperties.Remove(Property);
-    }
+    CallbackProperties.Remove(Property);
 }
 
 void URiveViewModelInstance::HandleCallbacks()
 {
-    // Always handle callbacks from the root instance.
-    if (Root != this)
+    for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
+         CallbackProperties)
     {
-        Root->HandleCallbacks();
-    }
-    else
-    {
-        for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
-             CallbackProperties)
+        if (WeakProperty.IsValid())
         {
-            if (WeakProperty.IsValid())
+            URiveViewModelInstanceValue* Property = WeakProperty.Get();
+            if (Property)
             {
-                URiveViewModelInstanceValue* Property = WeakProperty.Get();
-                if (Property)
-                {
-                    Property->HandleCallbacks();
-                }
+                Property->HandleCallbacks();
             }
         }
     }
@@ -94,22 +58,15 @@ void URiveViewModelInstance::HandleCallbacks()
 
 void URiveViewModelInstance::ClearCallbacks()
 {
-    if (Root != this)
+    for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
+         CallbackProperties)
     {
-        Root->ClearCallbacks();
-    }
-    else
-    {
-        for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
-             CallbackProperties)
+        if (WeakProperty.IsValid())
         {
-            if (WeakProperty.IsValid())
+            URiveViewModelInstanceValue* Property = WeakProperty.Get();
+            if (Property)
             {
-                URiveViewModelInstanceValue* Property = WeakProperty.Get();
-                if (Property)
-                {
-                    RemoveCallbackProperty(Property);
-                }
+                RemoveCallbackProperty(Property);
             }
         }
     }
@@ -180,8 +137,22 @@ T* URiveViewModelInstance::GetProperty(const FString& PropertyName)
         if (Property)
         {
             T* PropertyInstance = NewObject<T>(this);
-            PropertyInstance->Initialize(Property, Root);
+            PropertyInstance->Initialize(Property);
+
+            if constexpr (!std::is_same_v<T, URiveViewModelInstance>)
+            {
+                PropertyInstance->Initialize(Property);
+
+                PropertyInstance->OnAddCallbackProperty.BindDynamic(
+                    this,
+                    &URiveViewModelInstance::AddCallbackProperty);
+                PropertyInstance->OnRemoveCallbackProperty.BindDynamic(
+                    this,
+                    &URiveViewModelInstance::RemoveCallbackProperty);
+            }
+
             Properties.Add(Key, PropertyInstance);
+
             return PropertyInstance;
         }
     }

@@ -2,11 +2,9 @@
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 
 void URiveViewModelInstanceValue::Initialize(
-    rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue,
-    URiveViewModelInstance* InRoot)
+    rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue)
 {
     ViewModelInstanceValuePtr = InViewModelInstanceValue;
-    Root = InRoot;
 }
 
 void URiveViewModelInstanceValue::BeginDestroy()
@@ -27,8 +25,10 @@ void URiveViewModelInstanceValue::HandleCallbacks()
 void URiveViewModelInstanceValue::ClearCallbacks()
 {
     OnValueChanged.Clear();
-    if (Root)
-        Root->RemoveCallbackProperty(this);
+    if (OnRemoveCallbackProperty.IsBound())
+    {
+        OnRemoveCallbackProperty.Execute(this);
+    }
 }
 
 void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
@@ -54,8 +54,10 @@ void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
 
     OnValueChanged.AddUnique(Delegate);
 
-    if (Root)
-        Root->AddCallbackProperty(this);
+    if (OnAddCallbackProperty.IsBound())
+    {
+        OnAddCallbackProperty.Execute(this);
+    }
 }
 
 void URiveViewModelInstanceValue::UnbindFromValueChange(UObject* Object,
@@ -76,8 +78,10 @@ void URiveViewModelInstanceValue::UnbindFromValueChange(UObject* Object,
 
     OnValueChanged.Remove(Delegate);
 
-    if (Root)
-        Root->RemoveCallbackProperty(this);
+    if (OnRemoveCallbackProperty.IsBound())
+    {
+        OnRemoveCallbackProperty.Execute(this);
+    }
 }
 
 void URiveViewModelInstanceValue::UnbindAllFromValueChange()

@@ -28,8 +28,7 @@ void URiveFile::BeginDestroy()
 {
     InitState = ERiveInitState::Deinitializing;
     RiveNativeFileSpan = {};
-    RiveNativeFilePtr.reset();
-    UObject::BeginDestroy();
+    Super::BeginDestroy();
 }
 
 void URiveFile::PostLoad()

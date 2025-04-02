@@ -455,7 +455,22 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #ifdef _EXPORTED_CLOCKWISE_FILL
     if (_EXPORTED_CLOCKWISE_FILL)
     {
-        coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+#ifdef _EXPORTED_VULKAN_VENDOR_ID
+        if (_EXPORTED_VULKAN_VENDOR_ID == VULKAN_VENDOR_ARM)
+        {
+            // ARM hits a bug if we use clamp() here.
+            if (coverageCount < .0)
+                coverage = .0;
+            else if (coverageCount <= 1.)
+                coverage = coverageCount;
+            else
+                coverage = 1.;
+        }
+        else
+#endif
+        {
+            coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+        }
     }
     else
 #endif // CLOCKWISE_FILL
@@ -552,24 +567,24 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         half4 color = find_paint_color(v_paint FRAGMENT_CONTEXT_UNPACK);
         color.w *= coverage;
 
-        half4 dstColor;
+        half4 dstColorPremul;
 #ifdef _EXPORTED_ATLAS_BLIT
-        dstColor = PLS_LOAD4F(colorBuffer);
+        dstColorPremul = PLS_LOAD4F(colorBuffer);
 #else
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
-            dstColor = PLS_LOAD4F(colorBuffer);
+            dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
             // We don't need to store coverage when drawing interior triangles
             // because they always go last and don't overlap, so every fragment
             // is the final one in the path.
-            PLS_STORE4F(scratchColorBuffer, dstColor);
+            PLS_STORE4F(scratchColorBuffer, dstColorPremul);
 #endif
         }
         else
         {
-            dstColor = PLS_LOAD4F(scratchColorBuffer);
+            dstColorPremul = PLS_LOAD4F(scratchColorBuffer);
 #ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
             // Since interior triangles are always last, there's no need to
             // preserve this value.
@@ -584,14 +599,14 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
             v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
             color = advanced_blend(color,
-                                   unmultiply(dstColor),
+                                   dstColorPremul,
                                    cast_half_to_ushort(v_blendMode));
         }
         else
 #endif
         {
             color.xyz *= color.w;
-            color = color + dstColor * (1. - color.w);
+            color = color + dstColorPremul * (1. - color.w);
         }
 
         PLS_STORE4F(colorBuffer, color);
@@ -628,10 +643,10 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor =
+        half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
         color = advanced_blend(color,
-                               unmultiply(dstColor),
+                               dstColorPremul,
                                cast_half_to_ushort(v_blendMode));
     }
     else

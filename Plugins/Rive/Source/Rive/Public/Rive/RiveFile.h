@@ -115,6 +115,8 @@ private:
     UPROPERTY(VisibleAnywhere, Category = Rive, meta = (NoResetToDefault))
     TSubclassOf<UUserWidget> WidgetClass;
 
+    std::unique_ptr<rive::File> RiveNativeFilePtr = nullptr;
+
 public:
     UPROPERTY(VisibleAnywhere, Category = Rive, meta = (NoResetToDefault))
     TMap<uint32, TObjectPtr<URiveAsset>> Assets;
@@ -168,17 +170,7 @@ public:
     rive::Span<const uint8> RiveNativeFileSpan;
     rive::Span<const uint8>& GetNativeFileSpan() { return RiveNativeFileSpan; }
 
-    std::unique_ptr<rive::File> RiveNativeFilePtr = nullptr;
-
-    rive::File* GetNativeFile() const
-    {
-        if (RiveNativeFilePtr)
-        {
-            return RiveNativeFilePtr.get();
-        }
-
-        return nullptr;
-    }
+    rive::File* GetNativeFile() const { return RiveNativeFilePtr.get(); }
 
     void PrintStats() const;
 

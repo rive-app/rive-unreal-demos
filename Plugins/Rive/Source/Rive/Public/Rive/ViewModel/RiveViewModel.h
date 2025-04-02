@@ -49,5 +49,5 @@ public:
     rive::DataType GetPropertyTypeByName(const FString& Name) const;
 
 private:
-    TUniquePtr<rive::ViewModelRuntime> ViewModelRuntimePtr = nullptr;
+    rive::ViewModelRuntime* ViewModelRuntimePtr = nullptr;
 };
