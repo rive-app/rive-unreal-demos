@@ -13,63 +13,154 @@ void URiveViewModel::Initialize(rive::ViewModelRuntime* InViewModel)
 
 FString URiveViewModel::GetName() const
 {
-    return ViewModelRuntimePtr ? FString(ViewModelRuntimePtr->name().c_str())
-                               : FString(TEXT(""));
+    if (!ViewModelRuntimePtr)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::GetName() ViewModelRuntimePtr is null."));
+
+        return FString(TEXT(""));
+    }
+
+    return FString(ViewModelRuntimePtr->name().c_str());
 }
 
 int32 URiveViewModel::GetInstanceCount() const
 {
-    return ViewModelRuntimePtr
-               ? static_cast<int32>(ViewModelRuntimePtr->instanceCount())
-               : 0;
-}
-
-URiveViewModelInstance* URiveViewModel::CreateDefaultInstance() const
-{
-    if (ViewModelRuntimePtr)
+    if (!ViewModelRuntimePtr)
     {
-        rive::ViewModelInstanceRuntime* DefaultInstance =
-            ViewModelRuntimePtr->createDefaultInstance();
-        if (DefaultInstance)
-        {
-            URiveViewModelInstance* InstanceWrapper =
-                NewObject<URiveViewModelInstance>();
-            InstanceWrapper->Initialize(DefaultInstance);
-            return InstanceWrapper;
-        }
-    }
-    return nullptr;
-}
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::GetInstanceCount() "
+                    "ViewModelRuntimePtr is null."));
 
-URiveViewModelInstance* URiveViewModel::CreateInstance()
-{
-    if (ViewModelRuntimePtr)
-    {
-        rive::ViewModelInstanceRuntime* RuntimeInstance =
-            ViewModelRuntimePtr->createInstance();
-        if (RuntimeInstance)
-        {
-            URiveViewModelInstance* InstanceWrapper =
-                NewObject<URiveViewModelInstance>();
-            InstanceWrapper->Initialize(RuntimeInstance);
-            return InstanceWrapper;
-        }
+        return 0;
     }
-    return nullptr;
+
+    return static_cast<int32>(ViewModelRuntimePtr->instanceCount());
 }
 
 TArray<FString> URiveViewModel::GetInstanceNames() const
 {
     TArray<FString> InstanceNames;
-    if (ViewModelRuntimePtr)
+
+    if (!ViewModelRuntimePtr)
     {
-        auto Names = ViewModelRuntimePtr->instanceNames();
-        for (const auto& Name : Names)
-        {
-            InstanceNames.Add(FString(Name.c_str()));
-        }
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::GetInstanceNames() "
+                    "ViewModelRuntimePtr is null."));
+
+        return InstanceNames;
     }
+
+    auto Names = ViewModelRuntimePtr->instanceNames();
+    for (const auto& Name : Names)
+    {
+        InstanceNames.Add(FString(Name.c_str()));
+    }
+
     return InstanceNames;
+}
+
+TArray<FString> URiveViewModel::GetPropertyNames() const
+{
+    TArray<FString> PropertyNames;
+
+    if (!ViewModelRuntimePtr)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::GetPropertyNames() "
+                    "ViewModelRuntimePtr is null."));
+
+        return PropertyNames;
+    }
+
+    auto Properties = ViewModelRuntimePtr->properties();
+    for (const auto& Property : Properties)
+    {
+        PropertyNames.Add(FString(Property.name.c_str()));
+    }
+
+    return PropertyNames;
+}
+
+rive::DataType URiveViewModel::GetPropertyTypeByName(const FString& Name) const
+{
+    if (!ViewModelRuntimePtr)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::GetPropertyTypeByName() "
+                    "ViewModelRuntimePtr is null."));
+
+        return rive::DataType::none;
+    }
+
+    auto Properties = ViewModelRuntimePtr->properties();
+    for (auto& Property : Properties)
+    {
+        if (FString(UTF8_TO_TCHAR(Property.name.c_str())) == Name)
+            return Property.type;
+    }
+
+    UE_LOG(LogRive,
+           Error,
+           TEXT("Failed to retrieve Property "
+                "with name '%s'."),
+           *Name);
+
+    return rive::DataType::none;
+}
+
+URiveViewModelInstance* URiveViewModel::CreateWrapperInstance(
+    rive::ViewModelInstanceRuntime* RuntimeInstance) const
+{
+    if (!RuntimeInstance)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::CreateWrapperInstance() "
+                    "RuntimeInstance is null."));
+
+        return nullptr;
+    }
+
+    URiveViewModelInstance* InstanceWrapper =
+        NewObject<URiveViewModelInstance>();
+    InstanceWrapper->Initialize(RuntimeInstance);
+    return InstanceWrapper;
+}
+
+URiveViewModelInstance* URiveViewModel::CreateDefaultInstance() const
+{
+    if (!ViewModelRuntimePtr)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::CreateDefaultInstance() "
+                    "ViewModelRuntimePtr is null."));
+
+        return nullptr;
+    }
+
+    return CreateWrapperInstance(ViewModelRuntimePtr->createDefaultInstance());
+}
+
+URiveViewModelInstance* URiveViewModel::CreateInstance()
+{
+    if (!ViewModelRuntimePtr)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::CreateInstance() "
+                    "ViewModelRuntimePtr is null."));
+
+        return nullptr;
+    }
+
+    return CreateWrapperInstance(ViewModelRuntimePtr->createInstance());
 }
 
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
@@ -77,7 +168,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
 {
     if (!ViewModelRuntimePtr)
     {
-        UE_LOG(LogRive, Warning, TEXT("ViewModelRuntimePtr is null."));
+        UE_LOG(LogRive, Error, TEXT("ViewModelRuntimePtr is null."));
         return nullptr;
     }
 
@@ -85,7 +176,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
         Index >= static_cast<int32>(ViewModelRuntimePtr->instanceCount()))
     {
         UE_LOG(LogRive,
-               Warning,
+               Error,
                TEXT("Index '%d' is out of range. "
                     "Valid range is [0, %d)."),
                Index,
@@ -93,23 +184,8 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
         return nullptr;
     }
 
-    rive::ViewModelInstanceRuntime* Instance =
-        ViewModelRuntimePtr->createInstanceFromIndex(
-            static_cast<size_t>(Index));
-    if (Instance)
-    {
-        URiveViewModelInstance* InstanceWrapper =
-            NewObject<URiveViewModelInstance>();
-        InstanceWrapper->Initialize(Instance);
-        return InstanceWrapper;
-    }
-
-    UE_LOG(LogRive,
-           Warning,
-           TEXT("Failed to retrieve ViewModelInstance "
-                "at index '%d'."),
-           Index);
-    return nullptr;
+    return CreateWrapperInstance(ViewModelRuntimePtr->createInstanceFromIndex(
+        static_cast<size_t>(Index)));
 }
 
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
@@ -117,53 +193,14 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
 {
     if (!ViewModelRuntimePtr)
     {
-        UE_LOG(LogRive, Warning, TEXT("ViewModelRuntimePtr is null."));
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModel::CreateInstanceFromName"
+                    "ViewModelRuntimePtr is null."));
+
         return nullptr;
     }
 
-    rive::ViewModelInstanceRuntime* Instance =
-        ViewModelRuntimePtr->createInstanceFromName(TCHAR_TO_UTF8(*Name));
-    if (Instance)
-    {
-        URiveViewModelInstance* InstanceWrapper =
-            NewObject<URiveViewModelInstance>();
-        InstanceWrapper->Initialize(Instance);
-        return InstanceWrapper;
-    }
-
-    UE_LOG(LogRive,
-           Warning,
-           TEXT("Failed to retrieve ViewModelInstance "
-                "with name '%s'."),
-           *Name);
-    return nullptr;
-}
-
-TArray<FString> URiveViewModel::GetPropertyNames() const
-{
-    TArray<FString> PropertyNames;
-    if (ViewModelRuntimePtr)
-    {
-        auto Properties = ViewModelRuntimePtr->properties();
-        for (const auto& Property : Properties)
-        {
-            PropertyNames.Add(FString(Property.name.c_str()));
-        }
-    }
-    return PropertyNames;
-}
-
-rive::DataType URiveViewModel::GetPropertyTypeByName(const FString& Name) const
-{
-    if (ViewModelRuntimePtr)
-    {
-        auto Properties = ViewModelRuntimePtr->properties();
-        for (auto& Property : Properties)
-        {
-            if (Property.name == TCHAR_TO_UTF8(*Name))
-                return Property.type;
-        }
-    }
-
-    return rive::DataType::none;
+    return CreateWrapperInstance(
+        ViewModelRuntimePtr->createInstanceFromName(TCHAR_TO_UTF8(*Name)));
 }

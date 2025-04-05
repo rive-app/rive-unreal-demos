@@ -223,45 +223,74 @@ int32 URiveFile::GetViewModelCount() const
 {
     if (!RiveNativeFilePtr)
     {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetViewModelCount "
+                    "RiveNativeFilePtr is Null."));
+
         return 0;
     }
+
     return static_cast<int32>(RiveNativeFilePtr->viewModelCount());
+}
+
+URiveViewModel* URiveFile::CreateViewModelWrapper(
+    rive::ViewModelRuntime* ViewModel) const
+{
+    if (!ViewModel)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::CreateViewModelWrapper "
+                    "ViewModel is Null."));
+
+        return nullptr;
+    }
+
+    URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
+    ViewModelWrapper->Initialize(ViewModel);
+    return ViewModelWrapper;
 }
 
 URiveViewModel* URiveFile::GetViewModelByIndex(int32 Index) const
 {
-    if (!RiveNativeFilePtr || Index < 0 || Index >= GetViewModelCount())
+    if (!RiveNativeFilePtr)
     {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetViewModelByIndex "
+                    "RiveNativeFilePtr is Null."));
         return nullptr;
     }
 
-    rive::ViewModelRuntime* ViewModel =
-        RiveNativeFilePtr->viewModelByIndex(Index);
-    if (ViewModel)
+    if (Index < 0 || Index >= GetViewModelCount())
     {
-        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
-        ViewModelWrapper->Initialize(ViewModel);
-        return ViewModelWrapper;
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetViewModelByIndex Index "
+                    "must be between 0 and %d."),
+               GetViewModelCount() - 1);
+
+        return nullptr;
     }
-    return nullptr;
+
+    return CreateViewModelWrapper(RiveNativeFilePtr->viewModelByIndex(Index));
 }
 
 URiveViewModel* URiveFile::GetViewModelByName(const FString& Name) const
 {
     if (!RiveNativeFilePtr)
     {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetViewModelByName "
+                    "RiveNativeFilePtr is Null."));
+
         return nullptr;
     }
 
-    rive::ViewModelRuntime* ViewModel =
-        RiveNativeFilePtr->viewModelByName(TCHAR_TO_UTF8(*Name));
-    if (ViewModel)
-    {
-        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
-        ViewModelWrapper->Initialize(ViewModel);
-        return ViewModelWrapper;
-    }
-    return nullptr;
+    return CreateViewModelWrapper(
+        RiveNativeFilePtr->viewModelByName(TCHAR_TO_UTF8(*Name)));
 }
 
 URiveViewModel* URiveFile::GetDefaultArtboardViewModel(
@@ -269,24 +298,27 @@ URiveViewModel* URiveFile::GetDefaultArtboardViewModel(
 {
     if (!RiveNativeFilePtr || !Artboard)
     {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetDefaultArtboardViewModel "
+                    "RiveNativeFilePtr or Artboard is Null."));
+
         return nullptr;
     }
 
     rive::Artboard* NativeArtboard = Artboard->GetNativeArtboard();
     if (!NativeArtboard)
     {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveFile::GetDefaultArtboardViewModel "
+                    "NativeArtboard is Null."));
+
         return nullptr;
     }
 
-    rive::ViewModelRuntime* ViewModel =
-        RiveNativeFilePtr->defaultArtboardViewModel(NativeArtboard);
-    if (ViewModel)
-    {
-        URiveViewModel* ViewModelWrapper = NewObject<URiveViewModel>();
-        ViewModelWrapper->Initialize(ViewModel);
-        return ViewModelWrapper;
-    }
-    return nullptr;
+    return CreateViewModelWrapper(
+        RiveNativeFilePtr->defaultArtboardViewModel(NativeArtboard));
 }
 
 #if WITH_EDITOR

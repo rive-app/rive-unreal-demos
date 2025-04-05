@@ -5,11 +5,19 @@ using namespace rive;
 
 FString URiveViewModelInstanceEnum::GetValue()
 {
-    if (auto* EnumPtr = GetNativePtr())
+    auto* EnumPtr = GetNativePtr();
+
+    if (!EnumPtr)
     {
-        return FString(EnumPtr->value().c_str());
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceEnum::GetValue() "
+                    "GetNativePtr() is null."));
+
+        return FString(TEXT(""));
     }
-    return FString(TEXT(""));
+
+    return FString(EnumPtr->value().c_str());
 }
 
 void URiveViewModelInstanceEnum::SetValue(const FString& Value)
@@ -17,34 +25,47 @@ void URiveViewModelInstanceEnum::SetValue(const FString& Value)
     // Since there's a bug in Unreal's GetOptions, we need to
     // validate the value before setting it.
 
-    if (GetValues().Contains(Value))
+    auto* EnumPtr = GetNativePtr();
+
+    if (!EnumPtr)
     {
-        if (auto* EnumPtr = GetNativePtr())
-        {
-            EnumPtr->value(TCHAR_TO_UTF8(*Value));
-        }
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceEnum::SetValue() "
+                    "GetNativePtr() is null."));
+
+        return;
     }
-    else
+
+    if (!GetValues().Contains(Value))
     {
-        UE_LOG(LogRive,
-               Warning,
-               TEXT("No "
-                    "enum option with name '%s'."),
-               *Value);
+        UE_LOG(LogRive, Error, TEXT("No enum option with name '%s'."), *Value);
+        return;
     }
+
+    EnumPtr->value(TCHAR_TO_UTF8(*Value));
 }
 
 TArray<FString> URiveViewModelInstanceEnum::GetValues() const
 {
     TArray<FString> Values;
 
-    if (auto* EnumPtr = GetNativePtr())
+    auto* EnumPtr = GetNativePtr();
+
+    if (!EnumPtr)
     {
-        auto EnumValues = EnumPtr->values();
-        for (const auto& Val : EnumValues)
-        {
-            Values.Add(FString(Val.c_str()));
-        }
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceEnum::GetValues() "
+                    "GetNativePtr() is null."));
+
+        return Values;
+    }
+
+    auto EnumValues = EnumPtr->values();
+    for (const auto& Val : EnumValues)
+    {
+        Values.Add(FString(Val.c_str()));
     }
 
     return Values;

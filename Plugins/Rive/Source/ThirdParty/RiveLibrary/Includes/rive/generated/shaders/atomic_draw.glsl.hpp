@@ -495,9 +495,8 @@ INLINE void resolve_paint(uint pathID,
         (blendMode = cast_uint_to_ushort((paintData.x >> 4) & 0xfu)) != 0u)
     {
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
-        fragColorOut.xyz = advanced_color_blend_pre_src_over(fragColorOut.xyz,
-                                                             dstColorPremul,
-                                                             blendMode);
+        fragColorOut.xyz =
+            advanced_color_blend(fragColorOut.xyz, dstColorPremul, blendMode);
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
 
@@ -796,8 +795,6 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(_EXPORTED_drawFragmentMain)
         apply_clip(imageDrawUniforms.clipID, clipData, imageCoverage);
     }
 #endif // ENABLE_CLIPPING
-    imageColor.w *=
-        imageCoverage * cast_float_to_half(imageDrawUniforms.opacity);
 
     // Prepare imageColor for premultiplied src-over blending.
 #if !defined(_EXPORTED_FIXED_FUNCTION_COLOR_OUTPUT) && defined(_EXPORTED_ENABLE_ADVANCED_BLEND)
@@ -808,16 +805,14 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(_EXPORTED_drawFragmentMain)
             PLS_LOAD4F(colorBuffer) * (1. - fragColorOut.w) + fragColorOut;
         // Calculate the imageColor to emit *BEFORE* src-over blending, such
         // that the post-src-over-blend result is equivalent to the blendMode.
-        imageColor.xyz = advanced_color_blend_pre_src_over(
-            imageColor.xyz,
-            dstColorPremul,
-            cast_uint_to_ushort(imageDrawUniforms.blendMode));
+        imageColor.xyz = advanced_color_blend(
+                             unmultiply_rgb(imageColor),
+                             dstColorPremul,
+                             cast_uint_to_ushort(imageDrawUniforms.blendMode)) *
+                         imageColor.w;
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
-
-    // Image draws use a premultiplied blend state; premultiply alpha here in
-    // the shader.
-    imageColor.xyz *= imageColor.w;
+    imageColor *= imageCoverage * cast_float_to_half(imageDrawUniforms.opacity);
 
     // Leverage the property that premultiplied src-over blending is associative
     // and blend the imageColor and fragColorOut before passing them on to the

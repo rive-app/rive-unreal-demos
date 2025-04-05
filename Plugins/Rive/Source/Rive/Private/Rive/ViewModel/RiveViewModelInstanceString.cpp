@@ -5,19 +5,32 @@
  */
 FString URiveViewModelInstanceString::GetValue()
 {
-    if (auto* StringPtr = GetNativePtr())
+    auto* StringPtr = GetNativePtr();
+
+    if (!StringPtr)
     {
-        if (StringPtr)
-            return FString(StringPtr->value().c_str());
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceString::GetValue() "
+                    "GetNativePtr() is null."));
+
+        return FString();
     }
-    return FString();
+
+    return FString(StringPtr->value().c_str());
 }
 
 void URiveViewModelInstanceString::SetValue(const FString& Value)
 {
-    if (auto* StringPtr = GetNativePtr())
+    auto* StringPtr = GetNativePtr();
+
+    if (!StringPtr)
     {
-        if (StringPtr)
-            StringPtr->value(TCHAR_TO_UTF8(*Value));
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceString::SetValue() "
+                    "GetNativePtr() is null."));
     }
+
+    StringPtr->value(TCHAR_TO_UTF8(*Value));
 }

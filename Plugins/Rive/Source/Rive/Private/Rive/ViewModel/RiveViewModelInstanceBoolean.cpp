@@ -5,17 +5,34 @@ using namespace rive;
 
 bool URiveViewModelInstanceBoolean::GetValue()
 {
-    if (auto* BooleanPtr = GetNativePtr())
+    auto* BooleanPtr = GetNativePtr();
+
+    if (!BooleanPtr)
     {
-        return BooleanPtr->value();
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceBoolean::GetValue() "
+                    "GetNativePtr() is null."));
+
+        return false;
     }
-    return false; // Default value if the instance is null
+
+    return BooleanPtr->value();
 }
 
 void URiveViewModelInstanceBoolean::SetValue(bool Value)
 {
-    if (auto* BooleanPtr = GetNativePtr())
+    auto* BooleanPtr = GetNativePtr();
+
+    if (!BooleanPtr)
     {
-        BooleanPtr->value(Value);
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceBoolean::SetValue() "
+                    "GetNativePtr() is null."));
+
+        return;
     }
+
+    BooleanPtr->value(Value);
 }

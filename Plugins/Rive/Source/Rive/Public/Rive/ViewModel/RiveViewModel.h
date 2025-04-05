@@ -49,5 +49,8 @@ public:
     rive::DataType GetPropertyTypeByName(const FString& Name) const;
 
 private:
+    URiveViewModelInstance* CreateWrapperInstance(
+        rive::ViewModelInstanceRuntime* RuntimeInstance) const;
+
     rive::ViewModelRuntime* ViewModelRuntimePtr = nullptr;
 };

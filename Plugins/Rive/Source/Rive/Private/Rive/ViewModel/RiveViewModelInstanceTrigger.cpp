@@ -5,9 +5,18 @@ using namespace rive;
 
 void URiveViewModelInstanceTrigger::Trigger()
 {
-    if (auto* TriggerPtr = GetNativePtr())
+    auto* TriggerPtr = GetNativePtr();
+
+    if (!TriggerPtr)
     {
-        TriggerPtr->trigger();
-        OnValueChanged.Broadcast();
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceTrigger::Trigger() "
+                    "GetNativePtr() is null."));
+
+        return;
     }
+
+    TriggerPtr->trigger();
+    OnValueChanged.Broadcast();
 }

@@ -115,6 +115,8 @@ private:
     UPROPERTY(VisibleAnywhere, Category = Rive, meta = (NoResetToDefault))
     TSubclassOf<UUserWidget> WidgetClass;
 
+    URiveViewModel* CreateViewModelWrapper(rive::ViewModelRuntime*) const;
+
     std::unique_ptr<rive::File> RiveNativeFilePtr = nullptr;
 
 public:

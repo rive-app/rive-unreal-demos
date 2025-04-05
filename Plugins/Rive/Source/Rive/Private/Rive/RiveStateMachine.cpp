@@ -487,7 +487,7 @@ void FRiveStateMachine::SetViewModelInstance(
     if (!NativeStateMachinePtr)
     {
         UE_LOG(LogRive,
-               Warning,
+               Error,
                TEXT("SetViewModelInstance failed: "
                     "NativeStateMachinePtr is null."));
         return;
@@ -496,7 +496,7 @@ void FRiveStateMachine::SetViewModelInstance(
     if (!RiveViewModelInstance || !RiveViewModelInstance->GetNativePtr())
     {
         UE_LOG(LogRive,
-               Warning,
+               Error,
                TEXT("SetViewModelInstance failed: "
                     "ViewModelInstance is invalid or null."));
         return;

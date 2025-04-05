@@ -15,7 +15,16 @@ void URiveViewModelInstanceValue::BeginDestroy()
 
 void URiveViewModelInstanceValue::HandleCallbacks()
 {
-    if (ViewModelInstanceValuePtr && ViewModelInstanceValuePtr->hasChanged())
+    if (!ViewModelInstanceValuePtr)
+    {
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("HandleCallbacks() ViewModelInstanceValuePtr is null."));
+
+        return;
+    }
+
+    if (ViewModelInstanceValuePtr->hasChanged())
     {
         ViewModelInstanceValuePtr->clearChanges();
         OnValueChanged.Broadcast();
@@ -38,7 +47,7 @@ void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
     {
         UE_LOG(
             LogTemp,
-            Warning,
+            Error,
             TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
 
         return;
@@ -67,7 +76,7 @@ void URiveViewModelInstanceValue::UnbindFromValueChange(UObject* Object,
     {
         UE_LOG(
             LogTemp,
-            Warning,
+            Error,
             TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
 
         return;

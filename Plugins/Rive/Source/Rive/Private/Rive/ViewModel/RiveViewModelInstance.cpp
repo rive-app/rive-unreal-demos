@@ -31,12 +31,32 @@ void URiveViewModelInstance::BeginDestroy()
 void URiveViewModelInstance::AddCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
+    if (!Property)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::AddCallbackProperty() "
+                    "Property is null."));
+
+        return;
+    }
+
     CallbackProperties.AddUnique(Property);
 }
 
 void URiveViewModelInstance::RemoveCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
+    if (!Property)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::RemoveCallbackProperty() "
+                    "Property is null."));
+
+        return;
+    }
+
     CallbackProperties.Remove(Property);
 }
 
@@ -92,78 +112,84 @@ T* URiveViewModelInstance::GetProperty(const FString& PropertyName)
         return Cast<T>(*Property);
     }
 
-    if (ViewModelInstancePtr)
+    if (!ViewModelInstancePtr)
     {
-        using PropertyType = typename PropertyTypeResolver<T>::Type;
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::GetProperty() "
+                    "ViewModelInstancePtr is null."));
 
-        PropertyType Property = nullptr;
-
-        if constexpr (std::is_same_v<T, URiveViewModelInstanceBoolean>)
-        {
-            Property = ViewModelInstancePtr->propertyBoolean(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceColor>)
-        {
-            Property = ViewModelInstancePtr->propertyColor(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceEnum>)
-        {
-            Property = ViewModelInstancePtr->propertyEnum(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceNumber>)
-        {
-            Property = ViewModelInstancePtr->propertyNumber(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceString>)
-        {
-            Property = ViewModelInstancePtr->propertyString(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceTrigger>)
-        {
-            Property = ViewModelInstancePtr->propertyTrigger(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstance>)
-        {
-            Property = ViewModelInstancePtr->propertyViewModel(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-
-        if (Property)
-        {
-            T* PropertyInstance = NewObject<T>(this);
-            PropertyInstance->Initialize(Property);
-
-            if constexpr (!std::is_same_v<T, URiveViewModelInstance>)
-            {
-                PropertyInstance->Initialize(Property);
-
-                PropertyInstance->OnAddCallbackProperty.BindDynamic(
-                    this,
-                    &URiveViewModelInstance::AddCallbackProperty);
-                PropertyInstance->OnRemoveCallbackProperty.BindDynamic(
-                    this,
-                    &URiveViewModelInstance::RemoveCallbackProperty);
-            }
-
-            Properties.Add(Key, PropertyInstance);
-
-            return PropertyInstance;
-        }
+        return nullptr;
     }
 
-    UE_LOG(LogRive,
-           Warning,
-           TEXT("Failed to retrieve "
-                "property with name '%s'."),
-           *Key);
+    using PropertyType = typename PropertyTypeResolver<T>::Type;
 
-    return nullptr;
+    PropertyType Property = nullptr;
+
+    if constexpr (std::is_same_v<T, URiveViewModelInstanceBoolean>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyBoolean(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceColor>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyColor(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceEnum>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyEnum(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceNumber>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyNumber(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceString>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyString(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceTrigger>)
+    {
+        Property =
+            ViewModelInstancePtr->propertyTrigger(TCHAR_TO_UTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstance>)
+    {
+        Property = ViewModelInstancePtr->propertyViewModel(
+            TCHAR_TO_UTF8(*PropertyName));
+    }
+
+    if (!Property)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("Failed to retrieve property with name '%s'."),
+               *Key);
+
+        return nullptr;
+    }
+
+    T* PropertyInstance = NewObject<T>(this);
+    PropertyInstance->Initialize(Property);
+
+    if constexpr (!std::is_same_v<T, URiveViewModelInstance>)
+    {
+        PropertyInstance->Initialize(Property);
+
+        PropertyInstance->OnAddCallbackProperty.BindDynamic(
+            this,
+            &URiveViewModelInstance::AddCallbackProperty);
+        PropertyInstance->OnRemoveCallbackProperty.BindDynamic(
+            this,
+            &URiveViewModelInstance::RemoveCallbackProperty);
+    }
+
+    Properties.Add(Key, PropertyInstance);
+
+    return PropertyInstance;
 }
 
 URiveViewModelInstanceBoolean* URiveViewModelInstance::GetBooleanProperty(

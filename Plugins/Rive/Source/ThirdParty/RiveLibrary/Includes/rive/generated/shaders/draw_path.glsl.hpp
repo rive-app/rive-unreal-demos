@@ -9,6 +9,17 @@ const char draw_path[] = R"===(/*
  * Copyright 2022 Rive
  */
 
+#ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
+// If advanced blend is enabled, we generate unmultiplied paint colors in the
+// shader. Otherwise we would have to just turn around and unmultiply them in
+// order to run the blend equation.
+#define GENERATE_PREMULTIPLIED_PAINT_COLORS  !_EXPORTED_ENABLE_ADVANCED_BLEND
+#else
+// As long as advanced blend is not enabled, it's more efficient for the shader
+// to generate premultiplied paint colors from the start.
+#define GENERATE_PREMULTIPLIED_PAINT_COLORS  true
+#endif
+
 #ifdef _EXPORTED_VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
@@ -201,6 +212,8 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
         half4 color = unpackUnorm4x8(paintData.y);
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color.xyz *= color.w;
         v_paint = float4(color);
     }
 #ifdef _EXPORTED_ENABLE_CLIPPING
@@ -321,11 +334,19 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
+INLINE half4 find_paint_color(float4 paint,
+                              float coverage FRAGMENT_CONTEXT_DECL)
 {
+    half4 color;
     if (paint.w >= .0) // Is the paint a solid color?
     {
-        return cast_float4_to_half4(paint);
+        // The vertex shader will have premultiplied 'paint' (or not) based on
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS.
+        color = cast_float4_to_half4(paint);
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color *= coverage;
+        else
+            color.w *= coverage;
     }
     else if (paint.w > -1.) // Is paint is a gradient (linear or radial)?
     {
@@ -339,22 +360,28 @@ INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
                       : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
         float row = -paint.w;
         // Our gradient texture is not mipmapped. Issue a texture-sample that
-        // explicitly does not find derivatives for LOD computation (by
-        // specifying derivatives directly).
-        return TEXTURE_SAMPLE_LOD(_EXPORTED_gradTexture,
-                                  gradSampler,
-                                  float2(x, row),
-                                  .0);
+        // explicitly does not find derivatives for LOD computation.
+        color =
+            TEXTURE_SAMPLE_LOD(_EXPORTED_gradTexture, gradSampler, float2(x, row), .0);
+        color.w *= coverage;
+        // Gradients are always unmultiplied so we don't lose color data while
+        // doing the hardware filter.
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color.xyz *= color.w;
     }
     else // The paint is an image.
     {
         half lod = -paint.w - 2.;
-        half4 color =
-            TEXTURE_SAMPLE_LOD(_EXPORTED_imageTexture, imageSampler, paint.xy, lod);
-        half opacity = paint.z;
-        color.w *= opacity;
-        return color;
+        color = TEXTURE_SAMPLE_LOD(_EXPORTED_imageTexture, imageSampler, paint.xy, lod);
+        half opacity = paint.z * coverage;
+        // Images are always premultiplied so the (transparent) background color
+        // doesn't bleed into the edges during the hardware filter.
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color *= opacity;
+        else
+            color = make_half4(unmultiply_rgb(color), color.w * opacity);
     }
+    return color;
 }
 
 #ifndef _EXPORTED_RENDER_MODE_MSAA
@@ -564,8 +591,8 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         }
 #endif // ENABLE_CLIP_RECT
 
-        half4 color = find_paint_color(v_paint FRAGMENT_CONTEXT_UNPACK);
-        color.w *= coverage;
+        half4 color =
+            find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
         half4 dstColorPremul;
 #ifdef _EXPORTED_ATLAS_BLIT
@@ -595,19 +622,22 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 
         // Blend with the framebuffer color.
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
-        if (_EXPORTED_ENABLE_ADVANCED_BLEND &&
-            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+        if (_EXPORTED_ENABLE_ADVANCED_BLEND)
         {
-            color = advanced_blend(color,
-                                   dstColorPremul,
-                                   cast_half_to_ushort(v_blendMode));
-        }
-        else
-#endif
-        {
+            // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
+            // advanced blend needs unmultiplied colors.
+            if (v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+            {
+                color.xyz =
+                    advanced_color_blend(color.xyz,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode));
+            }
+            // Premultiply alpha now.
             color.xyz *= color.w;
-            color = color + dstColorPremul * (1. - color.w);
         }
+#endif
+        color += dstColorPremul * (1. - color.w);
 
         PLS_STORE4F(colorBuffer, color);
         PLS_PRESERVE_UI(clipBuffer);
@@ -633,27 +663,28 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
-    half4 color = find_paint_color(v_paint);
+    half coverage =
 #ifdef _EXPORTED_ATLAS_BLIT
-    color.w *= filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+        filter_feather_atlas(
+            v_atlasCoord,
+            uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
+        1.;
 #endif
+    half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)
     {
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
+        // advanced blend needs unmultiplied colors.
         half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
         color = advanced_blend(color,
                                dstColorPremul,
                                cast_half_to_ushort(v_blendMode));
     }
-    else
 #endif // ENABLE_ADVANCED_BLEND
-    {
-        color = premultiply(color);
-    }
     EMIT_FRAG_DATA(color);
 }
 

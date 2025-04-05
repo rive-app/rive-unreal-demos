@@ -129,7 +129,7 @@ static FString GetTextForPropertyType(rive::DataType Type)
         case rive::DataType::viewModel:
             return FString(TEXT("ViewModel"));
         default:
-            return FString(TEXT("?"));
+            RIVE_UNREACHABLE();
     }
 }
 } // namespace RiveArtboardDetailCustomizationPrivate
