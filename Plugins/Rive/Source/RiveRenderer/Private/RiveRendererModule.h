@@ -1,4 +1,4 @@
-// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,7 +31,7 @@ public:
      */
 
 private:
-    void StartupLegacyRiveRenderer();
+    void StartupRiveRenderer();
 
 private:
     TSharedPtr<IRiveRenderer> RiveRenderer;

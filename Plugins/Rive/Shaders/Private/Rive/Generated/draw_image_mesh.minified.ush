@@ -181,11 +181,15 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 #ifdef ENABLE_ADVANCED_BLEND
     if (ENABLE_ADVANCED_BLEND)
     {
+        // Do the color portion of the blend mode in the shader.
         half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
-        color.xyz = unmultiply_rgb(color);
-        color =
-            advanced_blend(color, dstColorPremul, imageDrawUniforms.blendMode);
+        color.xyz = advanced_color_blend(unmultiply_rgb(color),
+                                         dstColorPremul,
+                                         imageDrawUniforms.blendMode);
+        // Src-over blending is enabled, so just premultiply and let the HW
+        // finish the the the alpha portion of the blend mode.
+        color.xyz *= color.w;
     }
 #endif // !ENABLE_ADVANCED_BLEND
 

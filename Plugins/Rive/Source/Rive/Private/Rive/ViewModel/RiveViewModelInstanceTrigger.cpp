@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceTrigger.h"
 
 // Use the Rive namespace for convenience
@@ -18,5 +20,5 @@ void URiveViewModelInstanceTrigger::Trigger()
     }
 
     TriggerPtr->trigger();
-    OnValueChanged.Broadcast();
+    OnValueChangedMulti.Broadcast();
 }

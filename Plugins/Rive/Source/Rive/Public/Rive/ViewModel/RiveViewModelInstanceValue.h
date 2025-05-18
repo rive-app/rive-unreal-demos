@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -12,7 +14,8 @@ class ViewModelInstanceValueRuntime;
 
 class URiveViewModelInstance;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnValueChangedDelegate);
+DECLARE_DYNAMIC_DELEGATE(FOnValueChangedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnValueChangedMultiDelegate);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FOnAddCallbackPropertyDelegate,
                                   URiveViewModelInstanceValue*,
                                   Value);
@@ -33,10 +36,10 @@ public:
     void ClearCallbacks();
 
     UFUNCTION(BlueprintCallable, Category = "Rive")
-    void BindToValueChange(UObject* Object, FName FunctionName);
+    void BindToValueChange(FOnValueChangedDelegate Delegate);
 
     UFUNCTION(BlueprintCallable, Category = "Rive")
-    void UnbindFromValueChange(UObject* Object, FName FunctionName);
+    void UnbindFromValueChange(FOnValueChangedDelegate Delegate);
 
     UFUNCTION(BlueprintCallable, Category = "Rive")
     void UnbindAllFromValueChange();
@@ -56,6 +59,8 @@ protected:
 
     UPROPERTY()
     FOnValueChangedDelegate OnValueChanged;
+
+    FOnValueChangedMultiDelegate OnValueChangedMulti;
 
 private:
     rive::ViewModelInstanceValueRuntime* ViewModelInstanceValuePtr = nullptr;

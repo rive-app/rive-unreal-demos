@@ -172,6 +172,7 @@ typedef float3 packed_float3;
 #else
 #define PLS_DECL4F(IDX, NAME)  uniform PLS_TEX2D<uint> NAME : register(u##IDX)
 #endif
+#define PLS_DECL4F_READONLY  PLS_DECL4F
 #define PLS_DECLUI(IDX, NAME)  uniform PLS_TEX2D<uint> NAME : register(u##IDX)
 #define PLS_DECLUI_ATOMIC  PLS_DECLUI
 #define PLS_LOADUI_ATOMIC  PLS_LOADUI
@@ -227,7 +228,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         uint NAME##_pad1;                                                      \
         uint NAME##_pad2;                                                      \
     }                                                                          \
-    Varyings NAME(Attrs attrs, uint _vertexID                                  \
+    Varyings main(Attrs attrs, uint _vertexID                                  \
                   : SV_VertexID, uint _instanceIDWithoutBase                  \
                   : SV_InstanceID)                                            \
     {                                                                          \
@@ -235,7 +236,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         Varyings _varyings;
 
 #define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)      \
-    Varyings NAME(Attrs attrs, uint _vertexID : SV_VertexID)                  \
+    Varyings main(Attrs attrs, uint _vertexID : SV_VertexID)                  \
     {                                                                          \
         Varyings _varyings;                                                    \
         float4 _pos;
@@ -246,7 +247,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
                                UVAttr,                                         \
                                uv,                                             \
                                _vertexID)                                       \
-    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID             \
+    Varyings main(PositionAttr position, UVAttr uv, uint _vertexID             \
                   : SV_VertexID)                                              \
     {                                                                          \
         Varyings _varyings;                                                    \
@@ -258,7 +259,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
     return _varyings;
 
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                         \
-    DATA_TYPE NAME(Varyings _varyings) : SV_Target                            \
+    DATA_TYPE main(Varyings _varyings) : SV_Target                            \
     {
 
 #define EMIT_FRAG_DATA(VALUE)                                                   \
@@ -271,7 +272,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define PLS_CONTEXT_DECL  , int2 _plsCoord
 #define PLS_CONTEXT_UNPACK  , _plsCoord
 
-#define PLS_MAIN(NAME)  [earlydepthstencil] void NAME(Varyings _varyings) { \
+#define PLS_MAIN(NAME)  [earlydepthstencil] void main(Varyings _varyings) { \
         float2 _fragCoord = _varyings._pos.xy;\
         int2 _plsCoord = int2(floor(_fragCoord));
 
@@ -280,7 +281,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define EMIT_PLS  }
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                               \
-    [earlydepthstencil] half4 NAME(Varyings _varyings) : SV_Target           \
+    [earlydepthstencil] half4 main(Varyings _varyings) : SV_Target           \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
         int2 _plsCoord = int2(floor(_fragCoord));                              \

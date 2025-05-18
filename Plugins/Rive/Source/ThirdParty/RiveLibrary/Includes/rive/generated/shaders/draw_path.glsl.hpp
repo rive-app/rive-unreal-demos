@@ -50,7 +50,7 @@ _EXPORTED_OPTIONALLY_FLAT VARYING(3, half, v_pathID);
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-_EXPORTED_OPTIONALLY_FLAT VARYING(4, half, v_clipID);
+_EXPORTED_OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
@@ -86,7 +86,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_INIT(v_clipID, half);
+    VARYING_INIT(v_clipIDs, half2);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
@@ -165,11 +165,12 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         uint clipIDBits =
             (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >>
             16;
-        v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
+        half clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
         // Negative clipID means to update the clip buffer instead of the color
         // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
-            v_clipID = -v_clipID;
+            clipID = -clipID;
+        v_clipIDs.x = clipID;
     }
 #endif
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
@@ -221,7 +222,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     {
         half outerClipID =
             id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
-        v_paint = float4(outerClipID, 0, 0, 0);
+        v_clipIDs.y = outerClipID;
     }
 #endif
     else
@@ -318,7 +319,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_PACK(v_clipID);
+    VARYING_PACK(v_clipIDs);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
@@ -411,7 +412,7 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_UNPACK(v_clipID, half);
+    VARYING_UNPACK(v_clipIDs, half2);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
@@ -515,13 +516,13 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #endif // !@ATLAS_BLIT
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    if (_EXPORTED_ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
+    if (_EXPORTED_ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
     {
-        half clipID = -v_clipID;
+        half clipID = -v_clipIDs.x;
 #ifdef _EXPORTED_ENABLE_NESTED_CLIPPING
         if (_EXPORTED_ENABLE_NESTED_CLIPPING)
         {
-            half outerClipID = v_paint.x;
+            half outerClipID = v_clipIDs.y;
             if (outerClipID != .0)
             {
                 // This is a nested clip. Intersect coverage with the enclosing
@@ -570,16 +571,16 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         if (_EXPORTED_ENABLE_CLIPPING)
         {
             // Apply the clip.
-            if (v_clipID != .0)
+            half clipID = v_clipIDs.x;
+            if (clipID != .0)
             {
                 // Clip IDs are not necessarily drawn in monotonically
                 // increasing order, so always check exact equality of the
                 // clipID.
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.y;
-                coverage = (clipContentID == v_clipID)
-                               ? min(clipData.x, coverage)
-                               : make_half(.0);
+                coverage = (clipContentID == clipID) ? min(clipData.x, coverage)
+                                                     : make_half(.0);
             }
         }
 #endif
@@ -676,13 +677,19 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)
     {
-        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
-        // advanced blend needs unmultiplied colors.
+        // Do the color portion of the blend mode in the shader.
+        //
+        // NOTE: "color" is already unmultiplied because
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
+        // blend.
         half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color,
-                               dstColorPremul,
-                               cast_half_to_ushort(v_blendMode));
+        color.xyz = advanced_color_blend(color.xyz,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode));
+        // Src-over blending is enabled, so just premultiply and let the HW
+        // finish the the the alpha portion of the blend mode.
+        color.xyz *= color.w;
     }
 #endif // ENABLE_ADVANCED_BLEND
     EMIT_FRAG_DATA(color);

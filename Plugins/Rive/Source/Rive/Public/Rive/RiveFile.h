@@ -1,4 +1,5 @@
-﻿// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 
 #include <memory>
@@ -21,6 +22,7 @@ THIRD_PARTY_INCLUDES_END
 class URiveAsset;
 class URiveArtboard;
 class URiveViewModel;
+class UAssetImportData;
 
 /**
  *
@@ -130,7 +132,7 @@ public:
     {
         for (const TTuple<unsigned int, TObjectPtr<URiveAsset>>& x : Assets)
         {
-            if (x.Value->Id == InId)
+            if (x.Value != nullptr && x.Value->Id == InId)
             {
                 return x.Value;
             }
@@ -144,7 +146,7 @@ public:
     {
         for (const TTuple<unsigned int, TObjectPtr<URiveAsset>>& x : Assets)
         {
-            if (x.Value->Name.Equals(InName))
+            if (x.Value != nullptr && x.Value->Name.Equals(InName))
             {
                 return x.Value;
             }

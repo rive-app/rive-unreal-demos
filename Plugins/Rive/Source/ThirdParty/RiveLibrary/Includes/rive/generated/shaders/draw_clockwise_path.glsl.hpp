@@ -361,7 +361,8 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
                                             imageSampler,
                                             paintCoord,
                                             lod);
-            paintColor.w *= opacity;
+            paintColor =
+                make_half4(unmultiply_rgb(paintColor), paintColor.w * opacity);
         }
     }
 

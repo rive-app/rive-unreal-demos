@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceValue.h"
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 
@@ -27,28 +29,27 @@ void URiveViewModelInstanceValue::HandleCallbacks()
     if (ViewModelInstanceValuePtr->hasChanged())
     {
         ViewModelInstanceValuePtr->clearChanges();
-        OnValueChanged.Broadcast();
+        OnValueChangedMulti.Broadcast();
     }
 }
 
 void URiveViewModelInstanceValue::ClearCallbacks()
 {
-    OnValueChanged.Clear();
+    OnValueChangedMulti.Clear();
     if (OnRemoveCallbackProperty.IsBound())
     {
         OnRemoveCallbackProperty.Execute(this);
     }
 }
 
-void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
-                                                    FName FunctionName)
+void URiveViewModelInstanceValue::BindToValueChange(
+    FOnValueChangedDelegate Delegate)
 {
-    if (FunctionName.IsNone() || !Object)
+    if (!Delegate.IsBound())
     {
-        UE_LOG(
-            LogTemp,
-            Error,
-            TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("BindToValueChange failed: Delegate is not bound."));
 
         return;
     }
@@ -58,10 +59,7 @@ void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
         ViewModelInstanceValuePtr->clearChanges();
     }
 
-    FScriptDelegate Delegate;
-    Delegate.BindUFunction(Object, FunctionName);
-
-    OnValueChanged.AddUnique(Delegate);
+    OnValueChangedMulti.AddUnique(Delegate);
 
     if (OnAddCallbackProperty.IsBound())
     {
@@ -69,23 +67,19 @@ void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
     }
 }
 
-void URiveViewModelInstanceValue::UnbindFromValueChange(UObject* Object,
-                                                        FName FunctionName)
+void URiveViewModelInstanceValue::UnbindFromValueChange(
+    FOnValueChangedDelegate Delegate)
 {
-    if (FunctionName.IsNone() || !Object)
+    if (!Delegate.IsBound())
     {
-        UE_LOG(
-            LogTemp,
-            Error,
-            TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("UnbindFromValueChange failed: Delegate is not bound."));
 
         return;
     }
 
-    FScriptDelegate Delegate;
-    Delegate.BindUFunction(Object, FunctionName);
-
-    OnValueChanged.Remove(Delegate);
+    OnValueChangedMulti.Remove(Delegate);
 
     if (OnRemoveCallbackProperty.IsBound())
     {

@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 #include "Rive/ViewModel/RiveViewModelInstanceNumber.h"
 #include "Rive/ViewModel/RiveViewModelInstanceString.h"
@@ -7,6 +9,7 @@
 #include "Rive/ViewModel/RiveViewModelInstanceEnum.h"
 #include "Rive/ViewModel/RiveViewModelPropertyResolver.h"
 #include "Logs/RiveLog.h"
+#include "Rive/RiveUtils.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
@@ -128,38 +131,38 @@ T* URiveViewModelInstance::GetProperty(const FString& PropertyName)
 
     if constexpr (std::is_same_v<T, URiveViewModelInstanceBoolean>)
     {
-        Property =
-            ViewModelInstancePtr->propertyBoolean(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyBoolean(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstanceColor>)
     {
-        Property =
-            ViewModelInstancePtr->propertyColor(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyColor(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstanceEnum>)
     {
-        Property =
-            ViewModelInstancePtr->propertyEnum(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyEnum(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstanceNumber>)
     {
-        Property =
-            ViewModelInstancePtr->propertyNumber(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyNumber(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstanceString>)
     {
-        Property =
-            ViewModelInstancePtr->propertyString(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyString(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstanceTrigger>)
     {
-        Property =
-            ViewModelInstancePtr->propertyTrigger(TCHAR_TO_UTF8(*PropertyName));
+        Property = ViewModelInstancePtr->propertyTrigger(
+            RiveUtils::ToUTF8(*PropertyName));
     }
     else if constexpr (std::is_same_v<T, URiveViewModelInstance>)
     {
         Property = ViewModelInstancePtr->propertyViewModel(
-            TCHAR_TO_UTF8(*PropertyName));
+            RiveUtils::ToUTF8(*PropertyName));
     }
 
     if (!Property)

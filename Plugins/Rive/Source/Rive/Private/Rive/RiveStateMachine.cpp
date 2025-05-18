@@ -1,4 +1,4 @@
-// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
 
 #include "Rive/RiveStateMachine.h"
 #include "Rive/ViewModel/RiveViewModelInstance.h"
@@ -8,6 +8,7 @@
 #include "IRiveRendererModule.h"
 #include "Logs/RiveLog.h"
 #include "Stats/RiveStats.h"
+#include "Rive/RiveUtils.h"
 
 #if WITH_RIVE
 THIRD_PARTY_INCLUDES_START
@@ -40,7 +41,7 @@ FRiveStateMachine::FRiveStateMachine(
     else
     {
         NativeStateMachinePtr = InNativeArtboardInst->stateMachineNamed(
-            TCHAR_TO_UTF8(*InStateMachineName));
+            RiveUtils::ToUTF8(*InStateMachineName));
     }
 
     if (NativeStateMachinePtr == nullptr)
@@ -169,8 +170,8 @@ void FRiveStateMachine::FireTrigger(const FString& InPropertyName) const
         return;
     }
 
-    if (rive::SMITrigger* TriggerToBeFired =
-            NativeStateMachinePtr->getTrigger(TCHAR_TO_UTF8(*InPropertyName)))
+    if (rive::SMITrigger* TriggerToBeFired = NativeStateMachinePtr->getTrigger(
+            RiveUtils::ToUTF8(*InPropertyName)))
     {
         TriggerToBeFired->fire();
         return;
@@ -203,7 +204,7 @@ bool FRiveStateMachine::GetBoolValue(const FString& InPropertyName) const
     }
 
     if (const rive::SMIBool* BoolProperty =
-            NativeStateMachinePtr->getBool(TCHAR_TO_UTF8(*InPropertyName)))
+            NativeStateMachinePtr->getBool(RiveUtils::ToUTF8(*InPropertyName)))
     {
         return BoolProperty->value();
     }
@@ -236,7 +237,8 @@ float FRiveStateMachine::GetNumberValue(const FString& InPropertyName) const
     }
 
     if (const rive::SMINumber* NumberProperty =
-            NativeStateMachinePtr->getNumber(TCHAR_TO_UTF8(*InPropertyName)))
+            NativeStateMachinePtr->getNumber(
+                RiveUtils::ToUTF8(*InPropertyName)))
     {
         return NumberProperty->value();
     }
@@ -270,7 +272,7 @@ void FRiveStateMachine::SetBoolValue(const FString& InPropertyName,
     }
 
     if (rive::SMIBool* BoolProperty =
-            NativeStateMachinePtr->getBool(TCHAR_TO_UTF8(*InPropertyName)))
+            NativeStateMachinePtr->getBool(RiveUtils::ToUTF8(*InPropertyName)))
     {
         BoolProperty->value(bNewValue);
         return;
@@ -303,8 +305,8 @@ void FRiveStateMachine::SetNumberValue(const FString& InPropertyName,
         return;
     }
 
-    if (rive::SMINumber* NumberProperty =
-            NativeStateMachinePtr->getNumber(TCHAR_TO_UTF8(*InPropertyName)))
+    if (rive::SMINumber* NumberProperty = NativeStateMachinePtr->getNumber(
+            RiveUtils::ToUTF8(*InPropertyName)))
     {
         NumberProperty->value(NewValue);
         return;

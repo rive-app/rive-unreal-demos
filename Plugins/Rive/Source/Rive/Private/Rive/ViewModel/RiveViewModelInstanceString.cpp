@@ -1,4 +1,7 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceString.h"
+#include "Rive/RiveUtils.h"
 
 /**
  * Wrapper class for rive::ViewModelInstanceStringRuntime
@@ -31,6 +34,5 @@ void URiveViewModelInstanceString::SetValue(const FString& Value)
                TEXT("URiveViewModelInstanceString::SetValue() "
                     "GetNativePtr() is null."));
     }
-
-    StringPtr->value(TCHAR_TO_UTF8(*Value));
+    StringPtr->value(RiveUtils::ToUTF8(*Value));
 }

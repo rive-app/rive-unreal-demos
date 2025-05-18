@@ -1,4 +1,4 @@
-// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
 
 using System.IO;
 #if UE_5_0_OR_LATER
@@ -61,7 +61,6 @@ public class RiveRenderer : ModuleRules
 			PublicDependencyModuleNames.Add("D3D11RHI");
 
 			AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
-			// AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 
 			// Adding the path needed to include the private file D3D11RHIPrivate.h
 			string enginePath = Path.GetFullPath(Target.RelativeEnginePath);

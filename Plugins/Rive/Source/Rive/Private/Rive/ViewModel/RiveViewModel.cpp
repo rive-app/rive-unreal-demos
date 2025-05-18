@@ -1,6 +1,9 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModel.h"
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 #include "Logs/RiveLog.h"
+#include "Rive/RiveUtils.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
@@ -133,7 +136,7 @@ URiveViewModelInstance* URiveViewModel::CreateWrapperInstance(
     return InstanceWrapper;
 }
 
-URiveViewModelInstance* URiveViewModel::CreateDefaultInstance() const
+URiveViewModelInstance* URiveViewModel::CreateDefaultInstance()
 {
     if (!ViewModelRuntimePtr)
     {
@@ -164,7 +167,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstance()
 }
 
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
-    int32 Index) const
+    int32 Index)
 {
     if (!ViewModelRuntimePtr)
     {
@@ -189,7 +192,7 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromIndex(
 }
 
 URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
-    const FString& Name) const
+    const FString& Name)
 {
     if (!ViewModelRuntimePtr)
     {
@@ -202,5 +205,5 @@ URiveViewModelInstance* URiveViewModel::CreateInstanceFromName(
     }
 
     return CreateWrapperInstance(
-        ViewModelRuntimePtr->createInstanceFromName(TCHAR_TO_UTF8(*Name)));
+        ViewModelRuntimePtr->createInstanceFromName(RiveUtils::ToUTF8(*Name)));
 }

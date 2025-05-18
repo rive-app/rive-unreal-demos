@@ -1,5 +1,8 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceEnum.h"
 #include "Logs/RiveLog.h"
+#include "Rive/RiveUtils.h"
 
 using namespace rive;
 
@@ -43,7 +46,7 @@ void URiveViewModelInstanceEnum::SetValue(const FString& Value)
         return;
     }
 
-    EnumPtr->value(TCHAR_TO_UTF8(*Value));
+    EnumPtr->value(RiveUtils::ToUTF8(*Value));
 }
 
 TArray<FString> URiveViewModelInstanceEnum::GetValues() const

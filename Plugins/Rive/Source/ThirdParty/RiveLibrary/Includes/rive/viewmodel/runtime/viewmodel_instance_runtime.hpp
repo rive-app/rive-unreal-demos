@@ -13,6 +13,8 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_string_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_enum_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_asset_image_runtime.hpp"
 #include "rive/refcnt.hpp"
 
 namespace rive
@@ -39,7 +41,10 @@ public:
     ViewModelInstanceEnumRuntime* propertyEnum(const std::string& path) const;
     ViewModelInstanceTriggerRuntime* propertyTrigger(
         const std::string& path) const;
+    ViewModelInstanceListRuntime* propertyList(const std::string& path) const;
     ViewModelInstanceRuntime* propertyViewModel(const std::string& path) const;
+    ViewModelInstanceAssetImageRuntime* propertyImage(
+        const std::string& path) const;
     bool replaceViewModel(const std::string& path,
                           ViewModelInstanceRuntime* value) const;
     bool replaceViewModelByName(const std::string& name,

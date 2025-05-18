@@ -1,4 +1,5 @@
-﻿// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/RiveFile.h"
 
 #include "IRiveRenderer.h"
@@ -9,6 +10,7 @@
 #include "Rive/ViewModel/RiveViewModel.h"
 #include "Rive/RiveArtboard.h"
 #include "Blueprint/UserWidget.h"
+#include "Rive/RiveUtils.h"
 
 #if WITH_EDITOR
 #include "EditorFramework/AssetImportData.h"
@@ -290,7 +292,7 @@ URiveViewModel* URiveFile::GetViewModelByName(const FString& Name) const
     }
 
     return CreateViewModelWrapper(
-        RiveNativeFilePtr->viewModelByName(TCHAR_TO_UTF8(*Name)));
+        RiveNativeFilePtr->viewModelByName(RiveUtils::ToUTF8(*Name)));
 }
 
 URiveViewModel* URiveFile::GetDefaultArtboardViewModel(

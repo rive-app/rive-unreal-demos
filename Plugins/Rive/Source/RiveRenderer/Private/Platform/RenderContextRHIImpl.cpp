@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "RenderContextRHIImpl.hpp"
 
 #include "CommonRenderResources.h"
@@ -6,6 +8,9 @@
 #include "IImageWrapper.h"
 #include "PixelShaderUtils.h"
 #include "RenderGraphBuilder.h"
+#include "RenderResource.h"
+#include "ShaderParameterUtils.h"
+#include "GlobalShader.h"
 
 #if UE_VERSION_OLDER_THAN(5, 5, 0)
 #include "RHIResourceUpdates.h"
@@ -30,6 +35,7 @@
 
 THIRD_PARTY_INCLUDES_START
 #include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/render_context.hpp"
 #include "rive/shaders/constants.glsl"
 THIRD_PARTY_INCLUDES_END
 
@@ -809,93 +815,82 @@ rcp<RenderTargetRHI> RenderContextRHIImpl::makeRenderTarget(
                                      InTargetTexture);
 }
 
-rcp<Texture> RenderContextRHIImpl::decodeImageTexture(
+EImageFormat imageFormatToUEImageFormat(const Bitmap::ImageFormat* format)
+{
+    switch (format->type)
+    {
+        case Bitmap::ImageType::png:
+            return EImageFormat::PNG;
+        case Bitmap::ImageType::jpeg:
+            return EImageFormat::JPEG;
+        default:
+            return EImageFormat::Invalid;
+    }
+}
+
+rcp<Texture> RenderContextRHIImpl::platformDecodeImageTexture(
     Span<const uint8_t> encodedBytes)
 {
     constexpr uint8_t PNG_FINGERPRINT[4] = {0x89, 0x50, 0x4E, 0x47};
     constexpr uint8_t JPEG_FINGERPRINT[3] = {0xFF, 0xD8, 0xFF};
     constexpr uint8_t WEBP_FINGERPRINT[3] = {0x52, 0x49, 0x46};
 
-    EImageFormat format = EImageFormat::Invalid;
+    EImageFormat format = imageFormatToUEImageFormat(
+        Bitmap::RecognizeImageFormat(encodedBytes.data(), encodedBytes.size()));
 
-    // we do not have enough size to be anything
-    if (encodedBytes.size() < sizeof(PNG_FINGERPRINT))
+    // let rive bitmap handle the decoding
+    if (format == EImageFormat::Invalid)
     {
         return nullptr;
     }
 
-    if (memcmp(PNG_FINGERPRINT, encodedBytes.data(), sizeof(PNG_FINGERPRINT)) ==
-        0)
+    // Use Unreal for PNG and JPEG
+    IImageWrapperModule& ImageWrapperModule =
+        FModuleManager::LoadModuleChecked<IImageWrapperModule>(
+            FName("ImageWrapper"));
+    TSharedPtr<IImageWrapper> ImageWrapper =
+        ImageWrapperModule.CreateImageWrapper(format);
+    if (!ImageWrapper.IsValid() ||
+        !ImageWrapper->SetCompressed(encodedBytes.data(), encodedBytes.size()))
     {
-        format = EImageFormat::PNG;
-    }
-    else if (memcmp(JPEG_FINGERPRINT,
-                    encodedBytes.data(),
-                    sizeof(JPEG_FINGERPRINT)) == 0)
-    {
-        format = EImageFormat::JPEG;
-    }
-    else if (memcmp(WEBP_FINGERPRINT,
-                    encodedBytes.data(),
-                    sizeof(WEBP_FINGERPRINT)) == 0)
-    {
-        format = EImageFormat::Invalid;
-    }
-    else
-    {
-        RIVE_DEBUG_ERROR("Invalid Decode Image header");
         return nullptr;
     }
 
-    std::unique_ptr<Bitmap> bitmap;
-    if (format != EImageFormat::Invalid)
+    TArray<uint8> UncompressedRGBA;
+    if (!ImageWrapper->GetRaw(ERGBFormat::RGBA, 8, UncompressedRGBA))
     {
-        // Use Unreal for PNG and JPEG
-        IImageWrapperModule& ImageWrapperModule =
-            FModuleManager::LoadModuleChecked<IImageWrapperModule>(
-                FName("ImageWrapper"));
-        TSharedPtr<IImageWrapper> ImageWrapper =
-            ImageWrapperModule.CreateImageWrapper(format);
-        if (!ImageWrapper.IsValid() ||
-            !ImageWrapper->SetCompressed(encodedBytes.data(),
-                                         encodedBytes.size()))
-        {
-            return nullptr;
-        }
-
-        TArray<uint8> UncompressedRGBA;
-        if (!ImageWrapper->GetRaw(ERGBFormat::RGBA, 8, UncompressedRGBA))
-        {
-            return nullptr;
-        }
-
-        uint8* data = new uint8[UncompressedRGBA.NumBytes()];
-        memcpy(data, UncompressedRGBA.GetData(), UncompressedRGBA.NumBytes());
-
-        bitmap = std::make_unique<Bitmap>(ImageWrapper->GetWidth(),
-                                          ImageWrapper->GetHeight(),
-                                          Bitmap::PixelFormat::RGBA,
-                                          data);
-    }
-    else
-    {
-        // WEBP Decoding, using the built in rive method
-        bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
-        if (!bitmap)
-        {
-            RIVE_DEBUG_ERROR("Webp Decoding Failed !");
-            return nullptr;
-        }
+        return nullptr;
     }
 
-    if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
-    {
-        bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
-    }
-    return make_rcp<TextureRHIImpl>(bitmap->width(),
-                                    bitmap->height(),
-                                    1,
-                                    bitmap->bytes(),
+    std::unique_ptr<uint8_t[]> data(new uint8[UncompressedRGBA.Num()]);
+    memcpy(data.get(),
+           UncompressedRGBA.GetData(),
+           UncompressedRGBA.Num() * sizeof(uint8));
+
+    std::unique_ptr<Bitmap> bitmap =
+        std::make_unique<Bitmap>(ImageWrapper->GetWidth(),
+                                 ImageWrapper->GetHeight(),
+                                 Bitmap::PixelFormat::RGBA,
+                                 std::move(data));
+
+    bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
+
+    return makeImageTexture(bitmap->width(),
+                            bitmap->height(),
+                            1,
+                            bitmap->bytes());
+}
+
+rive::rcp<rive::gpu::Texture> RenderContextRHIImpl::makeImageTexture(
+    uint32_t width,
+    uint32_t height,
+    uint32_t mipLevelCount,
+    const uint8_t imageDataRGBA[])
+{
+    return make_rcp<TextureRHIImpl>(width,
+                                    height,
+                                    mipLevelCount,
+                                    imageDataRGBA,
                                     EPixelFormat::PF_R8G8B8A8);
 }
 
@@ -1030,29 +1025,29 @@ void* RenderContextRHIImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
     return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void RenderContextRHIImpl::unmapFlushUniformBuffer() {}
+void RenderContextRHIImpl::unmapFlushUniformBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapImageDrawUniformBuffer() {}
+void RenderContextRHIImpl::unmapImageDrawUniformBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapPathBuffer() {}
+void RenderContextRHIImpl::unmapPathBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapPaintBuffer() {}
+void RenderContextRHIImpl::unmapPaintBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapPaintAuxBuffer() {}
+void RenderContextRHIImpl::unmapPaintAuxBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapContourBuffer() {}
+void RenderContextRHIImpl::unmapContourBuffer(size_t mapSizeInBytes) {}
 
-void RenderContextRHIImpl::unmapGradSpanBuffer()
+void RenderContextRHIImpl::unmapGradSpanBuffer(size_t mapSizeInBytes)
 {
     m_gradSpanBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextRHIImpl::unmapTessVertexSpanBuffer()
+void RenderContextRHIImpl::unmapTessVertexSpanBuffer(size_t mapSizeInBytes)
 {
     m_tessSpanBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextRHIImpl::unmapTriangleVertexBuffer()
+void RenderContextRHIImpl::unmapTriangleVertexBuffer(size_t mapSizeInBytes)
 {
     m_triangleBuffer->unmapAndSubmitBuffer();
 }
@@ -1688,7 +1683,14 @@ void RenderContextRHIImpl::flush(const FlushDescriptor& desc)
                     }
                     break;
                     case DrawType::atomicInitialize:
-                    case DrawType::stencilClipReset:
+                    case DrawType::msaaStrokes:
+                    case DrawType::msaaMidpointFanBorrowedCoverage:
+                    case DrawType::msaaMidpointFans:
+                    case DrawType::msaaMidpointFanStencilReset:
+                    case DrawType::msaaMidpointFanPathsStencil:
+                    case DrawType::msaaMidpointFanPathsCover:
+                    case DrawType::msaaOuterCubics:
+                    case DrawType::msaaStencilClipReset:
                         RIVE_UNREACHABLE();
                 }
             }
