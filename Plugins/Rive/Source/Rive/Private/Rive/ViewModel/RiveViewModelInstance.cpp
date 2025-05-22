@@ -77,6 +77,18 @@ void URiveViewModelInstance::HandleCallbacks()
             }
         }
     }
+
+    for (const TPair<FString, UObject*>& Pair : Properties)
+    {
+        const FString& PropertyName = Pair.Key;
+        UObject* PropertyObject = Pair.Value;
+
+        if (URiveViewModelInstance* ViewModelInstance = 
+            Cast<URiveViewModelInstance>(PropertyObject))
+        {
+            ViewModelInstance->HandleCallbacks();
+        }
+    }
 }
 
 void URiveViewModelInstance::ClearCallbacks()
