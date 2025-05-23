@@ -11,6 +11,7 @@
 #include "RenderResource.h"
 #include "ShaderParameterUtils.h"
 #include "GlobalShader.h"
+#include "GenerateMips.h"
 
 #if UE_VERSION_OLDER_THAN(5, 5, 0)
 #include "RHIResourceUpdates.h"
@@ -459,14 +460,14 @@ public:
                                             m_height,
                                             PixelFormat)
                 .AddFlags(ETextureCreateFlags::SRGB);
-        Desc.SetNumMips(mipLevelCount);
+        Desc.SetNumMips(1);
         m_texture = CREATE_TEXTURE_ASYNC(commandList, Desc);
         commandList.UpdateTexture2D(
             m_texture,
             0,
             FUpdateTextureRegion2D(0, 0, 0, 0, m_width, m_height),
             m_width * 4,
-            imageData);
+            imageData);        
     }
 
     FRDGTextureRef asRDGTexture(FRDGBuilder& Builder) const
