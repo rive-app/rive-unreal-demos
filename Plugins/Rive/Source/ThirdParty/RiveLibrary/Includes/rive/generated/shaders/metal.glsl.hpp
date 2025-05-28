@@ -53,6 +53,7 @@ const char metal[] = R"===(/*
 #define OUT(ARG_TYPE)  thread ARG_TYPE&
 #define INOUT(ARG_TYPE)  thread ARG_TYPE&
 
+#define equal(A, B)  ((A) == (B))
 #define notEqual(A, B)  ((A) != (B))
 #define lessThanEqual(A, B)  ((A) <= (B))
 #define lessThan(A, B)  ((A) < (B))
@@ -477,6 +478,8 @@ INLINE uint pls_atomic_add(thread uint& dst, uint x)
     return {._color = _fragColor, ._pls = _pls};
 
 #endif // PLS_IMPL_DEVICE_BUFFER
+
+#define PLS_DECL4F_READONLY  PLS_DECL4F
 
 #define discard  discard_fragment()
 

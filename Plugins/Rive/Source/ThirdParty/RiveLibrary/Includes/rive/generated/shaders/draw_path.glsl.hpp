@@ -9,6 +9,17 @@ const char draw_path[] = R"===(/*
  * Copyright 2022 Rive
  */
 
+#ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
+// If advanced blend is enabled, we generate unmultiplied paint colors in the
+// shader. Otherwise we would have to just turn around and unmultiply them in
+// order to run the blend equation.
+#define GENERATE_PREMULTIPLIED_PAINT_COLORS  !_EXPORTED_ENABLE_ADVANCED_BLEND
+#else
+// As long as advanced blend is not enabled, it's more efficient for the shader
+// to generate premultiplied paint colors from the start.
+#define GENERATE_PREMULTIPLIED_PAINT_COLORS  true
+#endif
+
 #ifdef _EXPORTED_VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
 #ifdef _EXPORTED_DRAW_INTERIOR_TRIANGLES
@@ -39,7 +50,7 @@ _EXPORTED_OPTIONALLY_FLAT VARYING(3, half, v_pathID);
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-_EXPORTED_OPTIONALLY_FLAT VARYING(4, half, v_clipID);
+_EXPORTED_OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
@@ -75,7 +86,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_INIT(v_clipID, half);
+    VARYING_INIT(v_clipIDs, half2);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
@@ -154,11 +165,12 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         uint clipIDBits =
             (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >>
             16;
-        v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
+        half clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
         // Negative clipID means to update the clip buffer instead of the color
         // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
-            v_clipID = -v_clipID;
+            clipID = -clipID;
+        v_clipIDs.x = clipID;
     }
 #endif
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
@@ -201,6 +213,8 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (paintType == SOLID_COLOR_PAINT_TYPE)
     {
         half4 color = unpackUnorm4x8(paintData.y);
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color.xyz *= color.w;
         v_paint = float4(color);
     }
 #ifdef _EXPORTED_ENABLE_CLIPPING
@@ -208,7 +222,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     {
         half outerClipID =
             id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
-        v_paint = float4(outerClipID, 0, 0, 0);
+        v_clipIDs.y = outerClipID;
     }
 #endif
     else
@@ -305,7 +319,7 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_PACK(v_clipID);
+    VARYING_PACK(v_clipIDs);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
@@ -321,11 +335,19 @@ VERTEX_MAIN(_EXPORTED_drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
+INLINE half4 find_paint_color(float4 paint,
+                              float coverage FRAGMENT_CONTEXT_DECL)
 {
+    half4 color;
     if (paint.w >= .0) // Is the paint a solid color?
     {
-        return cast_float4_to_half4(paint);
+        // The vertex shader will have premultiplied 'paint' (or not) based on
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS.
+        color = cast_float4_to_half4(paint);
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color *= coverage;
+        else
+            color.w *= coverage;
     }
     else if (paint.w > -1.) // Is paint is a gradient (linear or radial)?
     {
@@ -339,22 +361,28 @@ INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
                       : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
         float row = -paint.w;
         // Our gradient texture is not mipmapped. Issue a texture-sample that
-        // explicitly does not find derivatives for LOD computation (by
-        // specifying derivatives directly).
-        return TEXTURE_SAMPLE_LOD(_EXPORTED_gradTexture,
-                                  gradSampler,
-                                  float2(x, row),
-                                  .0);
+        // explicitly does not find derivatives for LOD computation.
+        color =
+            TEXTURE_SAMPLE_LOD(_EXPORTED_gradTexture, gradSampler, float2(x, row), .0);
+        color.w *= coverage;
+        // Gradients are always unmultiplied so we don't lose color data while
+        // doing the hardware filter.
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color.xyz *= color.w;
     }
     else // The paint is an image.
     {
         half lod = -paint.w - 2.;
-        half4 color =
-            TEXTURE_SAMPLE_LOD(_EXPORTED_imageTexture, imageSampler, paint.xy, lod);
-        half opacity = paint.z;
-        color.w *= opacity;
-        return color;
+        color = TEXTURE_SAMPLE_LOD(_EXPORTED_imageTexture, imageSampler, paint.xy, lod);
+        half opacity = paint.z * coverage;
+        // Images are always premultiplied so the (transparent) background color
+        // doesn't bleed into the edges during the hardware filter.
+        if (GENERATE_PREMULTIPLIED_PAINT_COLORS)
+            color *= opacity;
+        else
+            color = make_half4(unmultiply_rgb(color), color.w * opacity);
     }
+    return color;
 }
 
 #ifndef _EXPORTED_RENDER_MODE_MSAA
@@ -384,7 +412,7 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    VARYING_UNPACK(v_clipID, half);
+    VARYING_UNPACK(v_clipIDs, half2);
 #endif
 #ifdef _EXPORTED_ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
@@ -455,7 +483,22 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #ifdef _EXPORTED_CLOCKWISE_FILL
     if (_EXPORTED_CLOCKWISE_FILL)
     {
-        coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+#ifdef _EXPORTED_VULKAN_VENDOR_ID
+        if (_EXPORTED_VULKAN_VENDOR_ID == VULKAN_VENDOR_ARM)
+        {
+            // ARM hits a bug if we use clamp() here.
+            if (coverageCount < .0)
+                coverage = .0;
+            else if (coverageCount <= 1.)
+                coverage = coverageCount;
+            else
+                coverage = 1.;
+        }
+        else
+#endif
+        {
+            coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+        }
     }
     else
 #endif // CLOCKWISE_FILL
@@ -473,13 +516,13 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 #endif // !@ATLAS_BLIT
 
 #ifdef _EXPORTED_ENABLE_CLIPPING
-    if (_EXPORTED_ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
+    if (_EXPORTED_ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
     {
-        half clipID = -v_clipID;
+        half clipID = -v_clipIDs.x;
 #ifdef _EXPORTED_ENABLE_NESTED_CLIPPING
         if (_EXPORTED_ENABLE_NESTED_CLIPPING)
         {
-            half outerClipID = v_paint.x;
+            half outerClipID = v_clipIDs.y;
             if (outerClipID != .0)
             {
                 // This is a nested clip. Intersect coverage with the enclosing
@@ -528,16 +571,16 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         if (_EXPORTED_ENABLE_CLIPPING)
         {
             // Apply the clip.
-            if (v_clipID != .0)
+            half clipID = v_clipIDs.x;
+            if (clipID != .0)
             {
                 // Clip IDs are not necessarily drawn in monotonically
                 // increasing order, so always check exact equality of the
                 // clipID.
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.y;
-                coverage = (clipContentID == v_clipID)
-                               ? min(clipData.x, coverage)
-                               : make_half(.0);
+                coverage = (clipContentID == clipID) ? min(clipData.x, coverage)
+                                                     : make_half(.0);
             }
         }
 #endif
@@ -549,27 +592,27 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
         }
 #endif // ENABLE_CLIP_RECT
 
-        half4 color = find_paint_color(v_paint FRAGMENT_CONTEXT_UNPACK);
-        color.w *= coverage;
+        half4 color =
+            find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
-        half4 dstColor;
+        half4 dstColorPremul;
 #ifdef _EXPORTED_ATLAS_BLIT
-        dstColor = PLS_LOAD4F(colorBuffer);
+        dstColorPremul = PLS_LOAD4F(colorBuffer);
 #else
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
-            dstColor = PLS_LOAD4F(colorBuffer);
+            dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
             // We don't need to store coverage when drawing interior triangles
             // because they always go last and don't overlap, so every fragment
             // is the final one in the path.
-            PLS_STORE4F(scratchColorBuffer, dstColor);
+            PLS_STORE4F(scratchColorBuffer, dstColorPremul);
 #endif
         }
         else
         {
-            dstColor = PLS_LOAD4F(scratchColorBuffer);
+            dstColorPremul = PLS_LOAD4F(scratchColorBuffer);
 #ifndef _EXPORTED_DRAW_INTERIOR_TRIANGLES
             // Since interior triangles are always last, there's no need to
             // preserve this value.
@@ -580,19 +623,22 @@ PLS_MAIN(_EXPORTED_drawFragmentMain)
 
         // Blend with the framebuffer color.
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
-        if (_EXPORTED_ENABLE_ADVANCED_BLEND &&
-            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+        if (_EXPORTED_ENABLE_ADVANCED_BLEND)
         {
-            color = advanced_blend(color,
-                                   unmultiply(dstColor),
-                                   cast_half_to_ushort(v_blendMode));
-        }
-        else
-#endif
-        {
+            // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
+            // advanced blend needs unmultiplied colors.
+            if (v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+            {
+                color.xyz =
+                    advanced_color_blend(color.xyz,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode));
+            }
+            // Premultiply alpha now.
             color.xyz *= color.w;
-            color = color + dstColor * (1. - color.w);
         }
+#endif
+        color += dstColorPremul * (1. - color.w);
 
         PLS_STORE4F(colorBuffer, color);
         PLS_PRESERVE_UI(clipBuffer);
@@ -618,27 +664,34 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
-    half4 color = find_paint_color(v_paint);
+    half coverage =
 #ifdef _EXPORTED_ATLAS_BLIT
-    color.w *= filter_feather_atlas(
-        v_atlasCoord,
-        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+        filter_feather_atlas(
+            v_atlasCoord,
+            uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
+        1.;
 #endif
+    half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor =
+        // Do the color portion of the blend mode in the shader.
+        //
+        // NOTE: "color" is already unmultiplied because
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
+        // blend.
+        half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color,
-                               unmultiply(dstColor),
-                               cast_half_to_ushort(v_blendMode));
+        color.xyz = advanced_color_blend(color.xyz,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode));
+        // Src-over blending is enabled, so just premultiply and let the HW
+        // finish the the the alpha portion of the blend mode.
+        color.xyz *= color.w;
     }
-    else
 #endif // ENABLE_ADVANCED_BLEND
-    {
-        color = premultiply(color);
-    }
     EMIT_FRAG_DATA(color);
 }
 

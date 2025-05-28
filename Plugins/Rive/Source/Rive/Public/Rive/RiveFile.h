@@ -1,4 +1,5 @@
-﻿// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 
 #include <memory>
@@ -21,6 +22,7 @@ THIRD_PARTY_INCLUDES_END
 class URiveAsset;
 class URiveArtboard;
 class URiveViewModel;
+class UAssetImportData;
 
 /**
  *
@@ -115,6 +117,10 @@ private:
     UPROPERTY(VisibleAnywhere, Category = Rive, meta = (NoResetToDefault))
     TSubclassOf<UUserWidget> WidgetClass;
 
+    URiveViewModel* CreateViewModelWrapper(rive::ViewModelRuntime*) const;
+
+    std::unique_ptr<rive::File> RiveNativeFilePtr = nullptr;
+
 public:
     UPROPERTY(VisibleAnywhere, Category = Rive, meta = (NoResetToDefault))
     TMap<uint32, TObjectPtr<URiveAsset>> Assets;
@@ -126,7 +132,7 @@ public:
     {
         for (const TTuple<unsigned int, TObjectPtr<URiveAsset>>& x : Assets)
         {
-            if (x.Value->Id == InId)
+            if (x.Value != nullptr && x.Value->Id == InId)
             {
                 return x.Value;
             }
@@ -140,7 +146,7 @@ public:
     {
         for (const TTuple<unsigned int, TObjectPtr<URiveAsset>>& x : Assets)
         {
-            if (x.Value->Name.Equals(InName))
+            if (x.Value != nullptr && x.Value->Name.Equals(InName))
             {
                 return x.Value;
             }
@@ -168,17 +174,7 @@ public:
     rive::Span<const uint8> RiveNativeFileSpan;
     rive::Span<const uint8>& GetNativeFileSpan() { return RiveNativeFileSpan; }
 
-    std::unique_ptr<rive::File> RiveNativeFilePtr = nullptr;
-
-    rive::File* GetNativeFile() const
-    {
-        if (RiveNativeFilePtr)
-        {
-            return RiveNativeFilePtr.get();
-        }
-
-        return nullptr;
-    }
+    rive::File* GetNativeFile() const { return RiveNativeFilePtr.get(); }
 
     void PrintStats() const;
 

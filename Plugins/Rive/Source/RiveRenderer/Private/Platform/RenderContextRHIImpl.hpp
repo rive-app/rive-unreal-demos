@@ -1,7 +1,10 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 #include <chrono>
 
 #include "RenderGraphBuilder.h"
+#include "Containers/DynamicRHIResourceArray.h"
 #include "Logs/RiveRendererLog.h"
 #include <RiveShaders/Public/RiveShaderTypes.h>
 
@@ -79,34 +82,42 @@ private:
     size_t m_stride;
 };
 
-template <typename UniformBufferType>
-class UniformBufferRHIImpl : public rive::gpu::BufferRing
+template <typename CPUUniformBufferType, typename GPUUniformBufferType>
+class UniformBufferRHIImpl
 {
 public:
-    UniformBufferRHIImpl(size_t InSizeInBytes) : BufferRing(InSizeInBytes) {}
-
-    TRDGUniformBufferRef<UniformBufferType> Sync(FRDGBuilder& Builder,
-                                                 size_t offset)
+    UniformBufferRHIImpl(size_t InSizeInBytes) : m_sizeInBytes(InSizeInBytes)
     {
-        UniformBufferType* Buffer =
-            reinterpret_cast<UniformBufferType*>(shadowBuffer() + offset);
-        return Builder.CreateUniformBuffer<UniformBufferType>(Buffer);
+        m_data.SetNumUninitialized(InSizeInBytes / m_cpuStride);
     }
 
-    TUniformBufferRef<UniformBufferType> contents() const { return m_buffer; }
-
-protected:
-    virtual void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    FORCENOINLINE TRDGUniformBufferRef<GPUUniformBufferType> Sync(
+        FRDGBuilder& Builder,
+        size_t offset)
     {
-        return shadowBuffer();
+        // there should be no remander
+        check(offset % m_cpuStride == 0);
+        GPUUniformBufferType* Buffer =
+            Builder.AllocParameters<GPUUniformBufferType>();
+        memcpy(Buffer, &m_data[offset / m_cpuStride], m_gpuStride);
+        return Builder.CreateUniformBuffer<GPUUniformBufferType>(Buffer);
     }
 
-    virtual void onUnmapAndSubmitBuffer(int bufferIdx,
-                                        size_t mapSizeInBytes) override
-    {}
+    void* mapBuffer(size_t mapSizeInBytes)
+    {
+        // we cant be 0 size
+        check(m_sizeInBytes);
+        // our map size must be less than or equal to our actual size
+        check(mapSizeInBytes <= m_sizeInBytes);
+        return m_data.GetData();
+    }
 
 private:
-    TUniformBufferRef<UniformBufferType> m_buffer;
+    size_t m_sizeInBytes;
+
+    TResourceArray<CPUUniformBufferType> m_data;
+    static constexpr size_t m_cpuStride = sizeof(CPUUniformBufferType);
+    static constexpr size_t m_gpuStride = sizeof(GPUUniformBufferType);
 };
 
 class RenderBufferRHIImpl final
@@ -164,8 +175,7 @@ public:
             FRDGBufferDesc::CreateStructuredDesc(
                 m_gpuStride,
                 elementCount * (m_cpuStride / m_gpuStride)),
-            TEXT("rive.StructuredBufferRHIImpl"),
-            ERDGBufferFlags::ForceImmediateFirstBarrier);
+            TEXT("rive.StructuredBufferRHIImpl"));
 
         Builder.QueueBufferUpload(buffer,
                                   &m_data[elementOffset],
@@ -255,8 +265,14 @@ public:
         return std::chrono::duration<double>(elapsed).count();
     }
 
-    virtual rive::rcp<rive::gpu::Texture> decodeImageTexture(
+    virtual rive::rcp<rive::gpu::Texture> platformDecodeImageTexture(
         rive::Span<const uint8_t> encodedBytes) override;
+
+    virtual rive::rcp<rive::gpu::Texture> makeImageTexture(
+        uint32_t width,
+        uint32_t height,
+        uint32_t mipLevelCount,
+        const uint8_t imageDataRGBA[]) override;
 
     virtual void resizeFlushUniformBuffer(size_t sizeInBytes) override;
     virtual void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
@@ -284,15 +300,15 @@ public:
     virtual void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) override;
 
-    virtual void unmapFlushUniformBuffer() override;
-    virtual void unmapImageDrawUniformBuffer() override;
-    virtual void unmapPathBuffer() override;
-    virtual void unmapPaintBuffer() override;
-    virtual void unmapPaintAuxBuffer() override;
-    virtual void unmapContourBuffer() override;
-    virtual void unmapGradSpanBuffer() override;
-    virtual void unmapTessVertexSpanBuffer() override;
-    virtual void unmapTriangleVertexBuffer() override;
+    virtual void unmapFlushUniformBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapImageDrawUniformBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapPathBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapPaintBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapPaintAuxBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapContourBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapGradSpanBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapTessVertexSpanBuffer(size_t unmapSizeInBytes) override;
+    virtual void unmapTriangleVertexBuffer(size_t unmapSizeInBytes) override;
 
     virtual rive::rcp<rive::RenderBuffer> makeRenderBuffer(
         rive::RenderBufferType,
@@ -332,8 +348,11 @@ private:
     FVertexDeclarationRHIRef VertexDeclarations[static_cast<int32>(
         EVertexDeclarations::NumVertexDeclarations)];
 
-    std::unique_ptr<UniformBufferRHIImpl<FFlushUniforms>> m_flushUniformBuffer;
-    std::unique_ptr<UniformBufferRHIImpl<FImageDrawUniforms>>
+    std::unique_ptr<
+        UniformBufferRHIImpl<rive::gpu::FlushUniforms, FFlushUniforms>>
+        m_flushUniformBuffer;
+    std::unique_ptr<
+        UniformBufferRHIImpl<rive::gpu::ImageDrawUniforms, FImageDrawUniforms>>
         m_imageDrawUniformBuffer;
     StructuredBufferRHIImpl<rive::gpu::PathData> m_pathBuffer;
     StructuredBufferRHIImpl<rive::gpu::PaintData> m_paintBuffer;

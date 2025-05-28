@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -29,16 +31,16 @@ public:
     int32 GetInstanceCount() const;
 
     UFUNCTION(BlueprintCallable, Category = "Rive|ViewModel")
-    class URiveViewModelInstance* CreateDefaultInstance() const;
+    URiveViewModelInstance* CreateDefaultInstance();
 
     UFUNCTION(BlueprintCallable, Category = "Rive|ViewModel")
     URiveViewModelInstance* CreateInstance();
 
     UFUNCTION(BlueprintCallable, Category = "Rive|ViewModel")
-    URiveViewModelInstance* CreateInstanceFromIndex(int32 Index) const;
+    URiveViewModelInstance* CreateInstanceFromIndex(int32 Index);
 
     UFUNCTION(BlueprintCallable, Category = "Rive|ViewModel")
-    URiveViewModelInstance* CreateInstanceFromName(const FString& Name) const;
+    URiveViewModelInstance* CreateInstanceFromName(const FString& Name);
 
     UFUNCTION(BlueprintCallable, Category = "Rive|ViewModel")
     TArray<FString> GetInstanceNames() const;
@@ -49,5 +51,8 @@ public:
     rive::DataType GetPropertyTypeByName(const FString& Name) const;
 
 private:
-    TUniquePtr<rive::ViewModelRuntime> ViewModelRuntimePtr = nullptr;
+    URiveViewModelInstance* CreateWrapperInstance(
+        rive::ViewModelInstanceRuntime* RuntimeInstance) const;
+
+    rive::ViewModelRuntime* ViewModelRuntimePtr = nullptr;
 };

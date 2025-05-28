@@ -5,9 +5,6 @@
 # Mac files
 .DS_Store
 
-# Mac files
-.DS_Store
-
 # Compiled Object files
 *.slo
 *.lo
@@ -25,12 +22,6 @@
 
 # Fortran module files
 *.mod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
 
 # Executables
 *.exe

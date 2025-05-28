@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceTrigger.h"
 
 // Use the Rive namespace for convenience
@@ -5,9 +7,18 @@ using namespace rive;
 
 void URiveViewModelInstanceTrigger::Trigger()
 {
-    if (auto* TriggerPtr = GetNativePtr())
+    auto* TriggerPtr = GetNativePtr();
+
+    if (!TriggerPtr)
     {
-        TriggerPtr->trigger();
-        OnValueChanged.Broadcast();
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("URiveViewModelInstanceTrigger::Trigger() "
+                    "GetNativePtr() is null."));
+
+        return;
     }
+
+    TriggerPtr->trigger();
+    OnValueChangedMulti.Broadcast();
 }

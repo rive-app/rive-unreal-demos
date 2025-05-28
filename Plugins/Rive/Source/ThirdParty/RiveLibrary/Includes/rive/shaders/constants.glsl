@@ -60,35 +60,40 @@
 // wouldn't be worth it to put them in their own dedicated draw call.
 #define RETROFITTED_TRIANGLE_CONTOUR_FLAG (1u << 31u)
 
+// Skip bit 30 in the contour flags so that it's always 0. This ensures we never
+// generate special NaN/Inf floating point values in contourIDWithFlags, which
+// may confuse the driver.
+#define NEVER_USED_CONTOUR_FLAG (1u << 30u)
+
 // Tells the tessellation shader to re-run Wang's formula on the given curve,
 // figure out how many segments it actually needs, and make any excess segments
 // degenerate by co-locating their vertices at T=0. (Used on the "outerCurve"
 // patches that are drawn with interior triangulations.)
-#define CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG (1u << 30u)
+#define CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG (1u << 29u)
 
 // Flags for specifying the join type.
-#define JOIN_TYPE_MASK (7u << 27u)
-#define MITER_CLIP_JOIN_CONTOUR_FLAG (5u << 27u)
-#define MITER_REVERT_JOIN_CONTOUR_FLAG (4u << 27u)
-#define BEVEL_JOIN_CONTOUR_FLAG (3u << 27u)
-#define ROUND_JOIN_CONTOUR_FLAG (2u << 27u)
-#define FEATHER_JOIN_CONTOUR_FLAG (1u << 27u)
+#define JOIN_TYPE_MASK (7u << 26u)
+#define MITER_CLIP_JOIN_CONTOUR_FLAG (5u << 26u)
+#define MITER_REVERT_JOIN_CONTOUR_FLAG (4u << 26u)
+#define BEVEL_JOIN_CONTOUR_FLAG (3u << 26u)
+#define ROUND_JOIN_CONTOUR_FLAG (2u << 26u)
+#define FEATHER_JOIN_CONTOUR_FLAG (1u << 26u)
 
 // When a join is being used to emulate a stroke cap, the shader emits
 // additional vertices at T=0 and T=1 for round joins, and changes the miter
 // limit to 1 for miter-clip joins.
-#define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 26u)
+#define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 25u)
 
 // Flip the sign on interpolated fragment coverage for fills. Ignored on
 // strokes. This is used when reversing the winding direction of a path.
-#define NEGATE_PATH_FILL_COVERAGE_FLAG (1u << 25u)
+#define NEGATE_PATH_FILL_COVERAGE_FLAG (1u << 24u)
 
 // Internal contour flags.
-#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 24u)
-#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 23u)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 22u)
-#define LEFT_JOIN_CONTOUR_FLAG (1u << 21u)
-#define RIGHT_JOIN_CONTOUR_FLAG (1u << 20u)
+#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 23u)
+#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 22u)
+#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 21u)
+#define LEFT_JOIN_CONTOUR_FLAG (1u << 20u)
+#define RIGHT_JOIN_CONTOUR_FLAG (1u << 19u)
 #define CONTOUR_ID_MASK 0xffffu
 
 // This is guaranteed to not collide with a neighboring contour ID.
@@ -159,8 +164,8 @@
 #define CLIP_PLANE_IDX 1
 #define SCRATCH_COLOR_PLANE_IDX 2
 #define COVERAGE_PLANE_IDX 3
-#define PIXEL_LOCAL_STORAGE_PLANE_COUNT 4
-#define DEPTH_STENCIL_IDX PIXEL_LOCAL_STORAGE_PLANE_COUNT
+#define PLS_PLANE_COUNT 4
+#define DEPTH_STENCIL_IDX PLS_PLANE_COUNT
 
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.
 #define RIVE_MITER_LIMIT float(4)
@@ -213,6 +218,14 @@
 #define CLOCKWISE_COVERAGE_INVERSE_PRECISION float(0.00048828125)
 #define CLOCKWISE_FILL_ZERO_VALUE (1u << 16)
 
+// Vendor IDs for driver workarounds.
+#define VULKAN_VENDOR_AMD 0x1002u
+#define VULKAN_VENDOR_IMG_TEC 0x1010u
+#define VULKAN_VENDOR_NVIDIA 0x10DEu
+#define VULKAN_VENDOR_ARM 0x13B5u
+#define VULKAN_VENDOR_QUALCOMM 0x5143u
+#define VULKAN_VENDOR_INTEL 0x8086u
+
 // Indices for SPIRV specialization constants (used in lieu of #defines in
 // Vulkan.)
 #define CLIPPING_SPECIALIZATION_IDX 0
@@ -224,4 +237,5 @@
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 6
 #define CLOCKWISE_FILL_SPECIALIZATION_IDX 7
 #define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 8
-#define SPECIALIZATION_COUNT 9
+#define VULKAN_VENDOR_ID_SPECIALIZATION_IDX 9
+#define SPECIALIZATION_COUNT 10

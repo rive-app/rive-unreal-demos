@@ -1,4 +1,4 @@
-// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
 
 #include "Rive/RiveArtboard.h"
 
@@ -10,6 +10,7 @@
 #include "Rive/RiveStateMachine.h"
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 #include "Stats/RiveStats.h"
+#include "Rive/RiveUtils.h"
 
 #if WITH_RIVE
 THIRD_PARTY_INCLUDES_START
@@ -152,8 +153,8 @@ void URiveArtboard::FireTriggerAtPath(const FString& InInputName,
         }
 
         rive::SMITrigger* SmiTrigger =
-            NativeArtboardPtr->getTrigger(TCHAR_TO_UTF8(*InInputName),
-                                          TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getTrigger(RiveUtils::ToUTF8(*InInputName),
+                                          RiveUtils::ToUTF8(*InPath));
         if (!SmiTrigger)
         {
             UE_LOG(LogRive,
@@ -208,8 +209,8 @@ bool URiveArtboard::GetBoolValueAtPath(const FString& InInputName,
             return false;
         }
         rive::SMIBool* SmiBool =
-            NativeArtboardPtr->getBool(TCHAR_TO_UTF8(*InInputName),
-                                       TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getBool(RiveUtils::ToUTF8(*InInputName),
+                                       RiveUtils::ToUTF8(*InPath));
         if (!SmiBool)
         {
             UE_LOG(LogRive,
@@ -271,8 +272,8 @@ float URiveArtboard::GetNumberValueAtPath(const FString& InInputName,
         }
 
         rive::SMINumber* SmiNumber =
-            NativeArtboardPtr->getNumber(TCHAR_TO_UTF8(*InInputName),
-                                         TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getNumber(RiveUtils::ToUTF8(*InInputName),
+                                         RiveUtils::ToUTF8(*InPath));
         if (!SmiNumber)
         {
             UE_LOG(LogRive,
@@ -313,7 +314,7 @@ FString URiveArtboard::GetTextValue(const FString& InPropertyName) const
         {
             if (const rive::TextValueRunBase* TextValueRun =
                     NativeArtboardPtr->find<rive::TextValueRunBase>(
-                        TCHAR_TO_UTF8(*InPropertyName)))
+                        RiveUtils::ToUTF8(*InPropertyName)))
             {
                 return FString{TextValueRun->text().c_str()};
             }
@@ -339,8 +340,8 @@ FString URiveArtboard::GetTextValueAtPath(const FString& InInputName,
         }
 
         rive::TextValueRunBase* TextValueRun =
-            NativeArtboardPtr->getTextRun(TCHAR_TO_UTF8(*InInputName),
-                                          TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getTextRun(RiveUtils::ToUTF8(*InInputName),
+                                          RiveUtils::ToUTF8(*InPath));
         if (!TextValueRun)
         {
             UE_LOG(LogRive,
@@ -391,8 +392,8 @@ void URiveArtboard::SetBoolValueAtPath(const FString& InInputName,
         }
 
         rive::SMIBool* SmiBool =
-            NativeArtboardPtr->getBool(TCHAR_TO_UTF8(*InInputName),
-                                       TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getBool(RiveUtils::ToUTF8(*InInputName),
+                                       RiveUtils::ToUTF8(*InPath));
         if (!SmiBool)
         {
             UE_LOG(LogRive,
@@ -454,8 +455,8 @@ void URiveArtboard::SetNumberValueAtPath(const FString& InInputName,
         }
 
         rive::SMINumber* SmiNumber =
-            NativeArtboardPtr->getNumber(TCHAR_TO_UTF8(*InInputName),
-                                         TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getNumber(RiveUtils::ToUTF8(*InInputName),
+                                         RiveUtils::ToUTF8(*InPath));
         if (!SmiNumber)
         {
             UE_LOG(LogRive,
@@ -496,9 +497,9 @@ void URiveArtboard::SetTextValue(const FString& InPropertyName,
         {
             if (rive::TextValueRunBase* TextValueRun =
                     NativeArtboardPtr->find<rive::TextValueRunBase>(
-                        TCHAR_TO_UTF8(*InPropertyName)))
+                        RiveUtils::ToUTF8(*InPropertyName)))
             {
-                TextValueRun->text(TCHAR_TO_UTF8(*NewValue));
+                TextValueRun->text(RiveUtils::ToUTF8(*NewValue));
             }
         }
     }
@@ -522,8 +523,8 @@ void URiveArtboard::SetTextValueAtPath(const FString& InInputName,
         }
 
         rive::TextValueRunBase* TextValueRun =
-            NativeArtboardPtr->getTextRun(TCHAR_TO_UTF8(*InInputName),
-                                          TCHAR_TO_UTF8(*InPath));
+            NativeArtboardPtr->getTextRun(RiveUtils::ToUTF8(*InInputName),
+                                          RiveUtils::ToUTF8(*InPath));
         if (!TextValueRun)
         {
             UE_LOG(LogRive,
@@ -535,7 +536,7 @@ void URiveArtboard::SetTextValueAtPath(const FString& InInputName,
             return;
         }
 
-        TextValueRun->text(TCHAR_TO_UTF8(*InValue));
+        TextValueRun->text(RiveUtils::ToUTF8(*InValue));
         OutSuccess = true;
     }
 
@@ -590,7 +591,7 @@ bool URiveArtboard::TriggerNamedRiveEvent(const FString& EventName,
     if (NativeArtboardPtr && GetStateMachine())
     {
         if (rive::Component* Component =
-                NativeArtboardPtr->find(TCHAR_TO_UTF8(*EventName)))
+                NativeArtboardPtr->find(RiveUtils::ToUTF8(*EventName)))
         {
             if (Component->is<rive::Event>())
             {
@@ -825,7 +826,7 @@ void URiveArtboard::Initialize(URiveFile* InRiveFile,
     else
     {
         NativeArtboard =
-            RiveFile->GetNativeFile()->artboard(TCHAR_TO_UTF8(*InName));
+            RiveFile->GetNativeFile()->artboard(RiveUtils::ToUTF8(*InName));
         if (!NativeArtboard)
         {
             UE_LOG(LogRive,
@@ -1175,7 +1176,6 @@ void URiveArtboard::Initialize_Internal(const rive::Artboard* InNativeArtboard)
     for (const rive::Event* Event : Events)
     {
         EventNames.Add(Event->name().c_str());
-        //UE_LOG(LogRive, Log, TEXT("Event: %hs"), Event->name().c_str());
     }
 
     bIsInitialized = true;

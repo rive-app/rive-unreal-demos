@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "RiveShaderTypes.h"
 
 #include <filesystem>
@@ -24,6 +26,11 @@ void ModifyShaderEnvironment(const FShaderPermutationParameters& Params,
     Environment.SetDefine(TEXT("UNIFORM_DEFINITIONS_AUTO_GENERATED"),
                           TEXT("1"));
 #endif
+
+    if (Params.Platform != 33)
+    {
+        Environment.SetDefine(TEXT("NEEDS_USHORT_DEFINE"), TEXT("1"));
+    }
 
     if (IsVertexShader)
     {

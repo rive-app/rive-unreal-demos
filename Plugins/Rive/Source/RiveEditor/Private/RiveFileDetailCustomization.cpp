@@ -1,4 +1,5 @@
-﻿// Copyright Rive, Inc. All rights reserved.
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "RiveFileDetailCustomization.h"
 
 #include "DetailCategoryBuilder.h"
@@ -10,6 +11,9 @@
 #include "Rive/ViewModel/RiveViewModel.h"
 #include "Rive/viewmodel/viewmodel_property_string.hpp"
 #include "Styling/SlateStyleMacros.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include <string>
 
 #include "EditorFontGlyphs.h"
@@ -129,7 +133,7 @@ static FString GetTextForPropertyType(rive::DataType Type)
         case rive::DataType::viewModel:
             return FString(TEXT("ViewModel"));
         default:
-            return FString(TEXT("?"));
+            RIVE_UNREACHABLE();
     }
 }
 } // namespace RiveArtboardDetailCustomizationPrivate

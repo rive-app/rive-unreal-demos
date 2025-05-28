@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
@@ -19,8 +21,7 @@ class RIVE_API URiveViewModelInstance : public UObject,
     GENERATED_BODY()
 
 public:
-    void Initialize(rive::ViewModelInstanceRuntime* InViewModelInstance,
-                    URiveViewModelInstance* Root = nullptr);
+    void Initialize(rive::ViewModelInstanceRuntime* InViewModelInstance);
 
     void BeginDestroy() override;
 
@@ -93,7 +94,9 @@ public:
     URiveViewModelInstance* GetNestedInstanceByName(
         const FString& PropertyName);
 
+    UFUNCTION()
     void AddCallbackProperty(URiveViewModelInstanceValue* Property);
+    UFUNCTION()
     void RemoveCallbackProperty(URiveViewModelInstanceValue* Property);
     void HandleCallbacks();
     void ClearCallbacks();
@@ -107,9 +110,6 @@ public:
 
 private:
     rive::ViewModelInstanceRuntime* ViewModelInstancePtr = nullptr;
-
-    UPROPERTY()
-    URiveViewModelInstance* Root = nullptr;
 
     UPROPERTY()
     TMap<FString, UObject*> Properties;

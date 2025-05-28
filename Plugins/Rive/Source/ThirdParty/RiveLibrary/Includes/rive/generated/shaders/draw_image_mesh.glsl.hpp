@@ -153,22 +153,19 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(_EXPORTED_drawFragmentMain)
 #endif
 
     // Blend with the framebuffer color.
-    color.w *= imageDrawUniforms.opacity * coverage;
-    half4 dstColor = PLS_LOAD4F(colorBuffer);
+    half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
     {
-        color =
-            advanced_blend(color,
-                           unmultiply(dstColor),
-                           cast_uint_to_ushort(imageDrawUniforms.blendMode));
+        color.xyz = advanced_color_blend(
+                        unmultiply_rgb(color),
+                        dstColorPremul,
+                        cast_uint_to_ushort(imageDrawUniforms.blendMode)) *
+                    color.w;
     }
-    else
 #endif
-    {
-        color.xyz *= color.w;
-        color = color + dstColor * (1. - color.w);
-    }
+    color *= imageDrawUniforms.opacity * coverage;
+    color += dstColorPremul * (1. - color.w);
 
     PLS_STORE4F(colorBuffer, color);
     PLS_PRESERVE_UI(clipBuffer);
@@ -185,23 +182,23 @@ FRAG_DATA_MAIN(half4, _EXPORTED_drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 
-    half4 color = TEXTURE_SAMPLE(_EXPORTED_imageTexture, imageSampler, v_texCoord);
-    color.w *= imageDrawUniforms.opacity;
+    half4 color = TEXTURE_SAMPLE(_EXPORTED_imageTexture, imageSampler, v_texCoord) *
+                  imageDrawUniforms.opacity;
 
 #ifdef _EXPORTED_ENABLE_ADVANCED_BLEND
     if (_EXPORTED_ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor =
+        // Do the color portion of the blend mode in the shader.
+        half4 dstColorPremul =
             TEXEL_FETCH(_EXPORTED_dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color,
-                               unmultiply(dstColor),
-                               imageDrawUniforms.blendMode);
+        color.xyz = advanced_color_blend(unmultiply_rgb(color),
+                                         dstColorPremul,
+                                         imageDrawUniforms.blendMode);
+        // Src-over blending is enabled, so just premultiply and let the HW
+        // finish the the the alpha portion of the blend mode.
+        color.xyz *= color.w;
     }
-    else
 #endif // !ENABLE_ADVANCED_BLEND
-    {
-        color = premultiply(color);
-    }
 
     EMIT_FRAG_DATA(color);
 }

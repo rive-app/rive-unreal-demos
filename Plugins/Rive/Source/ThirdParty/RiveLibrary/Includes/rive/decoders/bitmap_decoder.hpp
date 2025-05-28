@@ -15,18 +15,14 @@ public:
     enum class PixelFormat : uint8_t
     {
         RGB,
-        RGBA
+        RGBA,
+        RGBAPremul,
     };
 
     Bitmap(uint32_t width,
            uint32_t height,
            PixelFormat pixelFormat,
            std::unique_ptr<const uint8_t[]> bytes);
-
-    Bitmap(uint32_t width,
-           uint32_t height,
-           PixelFormat pixelFormat,
-           const uint8_t* bytes);
 
 private:
     uint32_t m_Width;
@@ -43,9 +39,6 @@ public:
     {
         return std::move(m_Bytes);
     }
-    size_t byteSize() const;
-    size_t byteSize(PixelFormat format) const;
-    size_t bytesPerPixel(PixelFormat format) const;
 
     enum class ImageType
     {

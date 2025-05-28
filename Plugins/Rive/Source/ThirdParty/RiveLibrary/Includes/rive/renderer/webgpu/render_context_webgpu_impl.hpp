@@ -94,7 +94,7 @@ public:
     rcp<Texture> makeImageTexture(uint32_t width,
                                   uint32_t height,
                                   uint32_t mipLevelCount,
-                                  const uint8_t imageDataRGBA[]) override;
+                                  const uint8_t imageDataRGBAPremul[]) override;
 
 protected:
     RenderContextWebGPUImpl(wgpu::Device device,
@@ -141,6 +141,8 @@ private:
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
 
+    void generateMipmaps(wgpu::Texture);
+
     // PLS always expects a clockwise front face.
     constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws =
         wgpu::FrontFace::CW;
@@ -156,8 +158,6 @@ private:
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
-
-    void prepareToMapBuffers() override {}
 
     void flush(const FlushDescriptor&) override;
 
@@ -179,6 +179,10 @@ private:
     EmJsHandle m_loadStoreEXTVertexShaderHandle;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
+
+    // Blits texture-to-texture using a draw command.
+    class BlitTextureAsDrawPipeline;
+    std::unique_ptr<BlitTextureAsDrawPipeline> m_blitTextureAsDrawPipeline;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
@@ -207,6 +211,7 @@ private:
     wgpu::Sampler m_mipmapSampler;
     wgpu::BindGroup m_samplerBindings;
     wgpu::PipelineLayout m_drawPipelineLayout;
+    wgpu::BindGroupLayout m_emptyBindingsLayout; // For when a set is unused.
     wgpu::Buffer m_pathPatchVertexBuffer;
     wgpu::Buffer m_pathPatchIndexBuffer;
 

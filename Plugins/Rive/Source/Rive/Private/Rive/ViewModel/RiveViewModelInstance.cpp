@@ -1,3 +1,5 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 #include "Rive/ViewModel/RiveViewModelInstanceNumber.h"
 #include "Rive/ViewModel/RiveViewModelInstanceString.h"
@@ -7,6 +9,7 @@
 #include "Rive/ViewModel/RiveViewModelInstanceEnum.h"
 #include "Rive/ViewModel/RiveViewModelPropertyResolver.h"
 #include "Logs/RiveLog.h"
+#include "Rive/RiveUtils.h"
 
 THIRD_PARTY_INCLUDES_START
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
@@ -15,28 +18,14 @@ THIRD_PARTY_INCLUDES_END
 using namespace rive;
 
 void URiveViewModelInstance::Initialize(
-    rive::ViewModelInstanceRuntime* InViewModelInstance,
-    URiveViewModelInstance* InRoot)
+    rive::ViewModelInstanceRuntime* InViewModelInstance)
 {
     ViewModelInstancePtr = InViewModelInstance;
-    Root = InRoot == nullptr ? this : InRoot;
 }
 
 void URiveViewModelInstance::BeginDestroy()
 {
-    // Only delete the root pointer, others are handled by
-    // the wrapped class.
-    if (Root == this)
-    {
-        ClearCallbacks();
-
-        if (ViewModelInstancePtr)
-        {
-            delete ViewModelInstancePtr;
-            ViewModelInstancePtr = nullptr;
-        }
-    }
-
+    ClearCallbacks();
     Properties.Empty();
 
     Super::BeginDestroy();
@@ -45,71 +34,74 @@ void URiveViewModelInstance::BeginDestroy()
 void URiveViewModelInstance::AddCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
-    if (Root != this)
+    if (!Property)
     {
-        Root->AddCallbackProperty(Property);
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::AddCallbackProperty() "
+                    "Property is null."));
+
+        return;
     }
-    else
-    {
-        CallbackProperties.AddUnique(Property);
-    }
+
+    CallbackProperties.AddUnique(Property);
 }
 
 void URiveViewModelInstance::RemoveCallbackProperty(
     URiveViewModelInstanceValue* Property)
 {
-    if (Root != this)
+    if (!Property)
     {
-        Root->RemoveCallbackProperty(Property);
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::RemoveCallbackProperty() "
+                    "Property is null."));
+
+        return;
     }
-    else
-    {
-        CallbackProperties.Remove(Property);
-    }
+
+    CallbackProperties.Remove(Property);
 }
 
 void URiveViewModelInstance::HandleCallbacks()
 {
-    // Always handle callbacks from the root instance.
-    if (Root != this)
+    for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
+         CallbackProperties)
     {
-        Root->HandleCallbacks();
-    }
-    else
-    {
-        for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
-             CallbackProperties)
+        if (WeakProperty.IsValid())
         {
-            if (WeakProperty.IsValid())
+            URiveViewModelInstanceValue* Property = WeakProperty.Get();
+            if (Property)
             {
-                URiveViewModelInstanceValue* Property = WeakProperty.Get();
-                if (Property)
-                {
-                    Property->HandleCallbacks();
-                }
+                Property->HandleCallbacks();
             }
+        }
+    }
+
+    for (const TPair<FString, UObject*>& Pair : Properties)
+    {
+        const FString& PropertyName = Pair.Key;
+        UObject* PropertyObject = Pair.Value;
+
+        if (URiveViewModelInstance* ViewModelInstance = 
+            Cast<URiveViewModelInstance>(PropertyObject))
+        {
+            ViewModelInstance->HandleCallbacks();
         }
     }
 }
 
 void URiveViewModelInstance::ClearCallbacks()
 {
-    if (Root != this)
+    for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
+         CallbackProperties)
     {
-        Root->ClearCallbacks();
-    }
-    else
-    {
-        for (TWeakObjectPtr<URiveViewModelInstanceValue> WeakProperty :
-             CallbackProperties)
+        if (WeakProperty.IsValid())
         {
-            if (WeakProperty.IsValid())
+            URiveViewModelInstanceValue* Property = WeakProperty.Get();
+            if (Property)
             {
-                URiveViewModelInstanceValue* Property = WeakProperty.Get();
-                if (Property)
-                {
-                    RemoveCallbackProperty(Property);
-                }
+                RemoveCallbackProperty(Property);
             }
         }
     }
@@ -135,64 +127,84 @@ T* URiveViewModelInstance::GetProperty(const FString& PropertyName)
         return Cast<T>(*Property);
     }
 
-    if (ViewModelInstancePtr)
+    if (!ViewModelInstancePtr)
     {
-        using PropertyType = typename PropertyTypeResolver<T>::Type;
+        UE_LOG(LogRive,
+               Error,
+               TEXT("URiveViewModelInstance::GetProperty() "
+                    "ViewModelInstancePtr is null."));
 
-        PropertyType Property = nullptr;
-
-        if constexpr (std::is_same_v<T, URiveViewModelInstanceBoolean>)
-        {
-            Property = ViewModelInstancePtr->propertyBoolean(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceColor>)
-        {
-            Property = ViewModelInstancePtr->propertyColor(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceEnum>)
-        {
-            Property = ViewModelInstancePtr->propertyEnum(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceNumber>)
-        {
-            Property = ViewModelInstancePtr->propertyNumber(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceString>)
-        {
-            Property = ViewModelInstancePtr->propertyString(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstanceTrigger>)
-        {
-            Property = ViewModelInstancePtr->propertyTrigger(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-        else if constexpr (std::is_same_v<T, URiveViewModelInstance>)
-        {
-            Property = ViewModelInstancePtr->propertyViewModel(
-                TCHAR_TO_UTF8(*PropertyName));
-        }
-
-        if (Property)
-        {
-            T* PropertyInstance = NewObject<T>(this);
-            PropertyInstance->Initialize(Property, Root);
-            Properties.Add(Key, PropertyInstance);
-            return PropertyInstance;
-        }
+        return nullptr;
     }
 
-    UE_LOG(LogRive,
-           Warning,
-           TEXT("Failed to retrieve "
-                "property with name '%s'."),
-           *Key);
+    using PropertyType = typename PropertyTypeResolver<T>::Type;
 
-    return nullptr;
+    PropertyType Property = nullptr;
+
+    if constexpr (std::is_same_v<T, URiveViewModelInstanceBoolean>)
+    {
+        Property = ViewModelInstancePtr->propertyBoolean(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceColor>)
+    {
+        Property = ViewModelInstancePtr->propertyColor(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceEnum>)
+    {
+        Property = ViewModelInstancePtr->propertyEnum(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceNumber>)
+    {
+        Property = ViewModelInstancePtr->propertyNumber(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceString>)
+    {
+        Property = ViewModelInstancePtr->propertyString(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstanceTrigger>)
+    {
+        Property = ViewModelInstancePtr->propertyTrigger(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+    else if constexpr (std::is_same_v<T, URiveViewModelInstance>)
+    {
+        Property = ViewModelInstancePtr->propertyViewModel(
+            RiveUtils::ToUTF8(*PropertyName));
+    }
+
+    if (!Property)
+    {
+        UE_LOG(LogRive,
+               Error,
+               TEXT("Failed to retrieve property with name '%s'."),
+               *Key);
+
+        return nullptr;
+    }
+
+    T* PropertyInstance = NewObject<T>(this);
+    PropertyInstance->Initialize(Property);
+
+    if constexpr (!std::is_same_v<T, URiveViewModelInstance>)
+    {
+        PropertyInstance->Initialize(Property);
+
+        PropertyInstance->OnAddCallbackProperty.BindDynamic(
+            this,
+            &URiveViewModelInstance::AddCallbackProperty);
+        PropertyInstance->OnRemoveCallbackProperty.BindDynamic(
+            this,
+            &URiveViewModelInstance::RemoveCallbackProperty);
+    }
+
+    Properties.Add(Key, PropertyInstance);
+
+    return PropertyInstance;
 }
 
 URiveViewModelInstanceBoolean* URiveViewModelInstance::GetBooleanProperty(

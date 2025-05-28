@@ -1,12 +1,12 @@
+// Copyright 2024, 2025 Rive, Inc. All rights reserved.
+
 #include "Rive/ViewModel/RiveViewModelInstanceValue.h"
 #include "Rive/ViewModel/RiveViewModelInstance.h"
 
 void URiveViewModelInstanceValue::Initialize(
-    rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue,
-    URiveViewModelInstance* InRoot)
+    rive::ViewModelInstanceValueRuntime* InViewModelInstanceValue)
 {
     ViewModelInstanceValuePtr = InViewModelInstanceValue;
-    Root = InRoot;
 }
 
 void URiveViewModelInstanceValue::BeginDestroy()
@@ -17,29 +17,39 @@ void URiveViewModelInstanceValue::BeginDestroy()
 
 void URiveViewModelInstanceValue::HandleCallbacks()
 {
-    if (ViewModelInstanceValuePtr && ViewModelInstanceValuePtr->hasChanged())
+    if (!ViewModelInstanceValuePtr)
+    {
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("HandleCallbacks() ViewModelInstanceValuePtr is null."));
+
+        return;
+    }
+
+    if (ViewModelInstanceValuePtr->hasChanged())
     {
         ViewModelInstanceValuePtr->clearChanges();
-        OnValueChanged.Broadcast();
+        OnValueChangedMulti.Broadcast();
     }
 }
 
 void URiveViewModelInstanceValue::ClearCallbacks()
 {
-    OnValueChanged.Clear();
-    if (Root)
-        Root->RemoveCallbackProperty(this);
+    OnValueChangedMulti.Clear();
+    if (OnRemoveCallbackProperty.IsBound())
+    {
+        OnRemoveCallbackProperty.Execute(this);
+    }
 }
 
-void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
-                                                    FName FunctionName)
+void URiveViewModelInstanceValue::BindToValueChange(
+    FOnValueChangedDelegate Delegate)
 {
-    if (FunctionName.IsNone() || !Object)
+    if (!Delegate.IsBound())
     {
-        UE_LOG(
-            LogTemp,
-            Warning,
-            TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("BindToValueChange failed: Delegate is not bound."));
 
         return;
     }
@@ -49,35 +59,32 @@ void URiveViewModelInstanceValue::BindToValueChange(UObject* Object,
         ViewModelInstanceValuePtr->clearChanges();
     }
 
-    FScriptDelegate Delegate;
-    Delegate.BindUFunction(Object, FunctionName);
+    OnValueChangedMulti.AddUnique(Delegate);
 
-    OnValueChanged.AddUnique(Delegate);
-
-    if (Root)
-        Root->AddCallbackProperty(this);
+    if (OnAddCallbackProperty.IsBound())
+    {
+        OnAddCallbackProperty.Execute(this);
+    }
 }
 
-void URiveViewModelInstanceValue::UnbindFromValueChange(UObject* Object,
-                                                        FName FunctionName)
+void URiveViewModelInstanceValue::UnbindFromValueChange(
+    FOnValueChangedDelegate Delegate)
 {
-    if (FunctionName.IsNone() || !Object)
+    if (!Delegate.IsBound())
     {
-        UE_LOG(
-            LogTemp,
-            Warning,
-            TEXT("BindToValueChange failed: Invalid Owner or Function Name."));
+        UE_LOG(LogTemp,
+               Error,
+               TEXT("UnbindFromValueChange failed: Delegate is not bound."));
 
         return;
     }
 
-    FScriptDelegate Delegate;
-    Delegate.BindUFunction(Object, FunctionName);
+    OnValueChangedMulti.Remove(Delegate);
 
-    OnValueChanged.Remove(Delegate);
-
-    if (Root)
-        Root->RemoveCallbackProperty(this);
+    if (OnRemoveCallbackProperty.IsBound())
+    {
+        OnRemoveCallbackProperty.Execute(this);
+    }
 }
 
 void URiveViewModelInstanceValue::UnbindAllFromValueChange()

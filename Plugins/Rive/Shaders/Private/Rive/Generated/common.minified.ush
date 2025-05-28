@@ -21,6 +21,22 @@
                               uniforms.renderTargetInverseViewportX,           \
                               uniforms.renderTargetInverseViewportY)
 
+#ifdef TESS_TEXTURE_FLOATING_POINT
+#define TEXTURE_TESSDATA4  TEXTURE_RGBA32F
+#define TESSDATA4  float4
+#define FLOAT_AS_TESSDATA(X)  X
+#define TESSDATA_AS_FLOAT(X)  X
+#define UINT_AS_TESSDATA(X)  uintBitsToFloat(X)
+#define TESSDATA_AS_UINT(X)  floatBitsToUint(X)
+#else
+#define TEXTURE_TESSDATA4  TEXTURE_RGBA32UI
+#define TESSDATA4  uint4
+#define FLOAT_AS_TESSDATA(X)  floatBitsToUint(X)
+#define TESSDATA_AS_FLOAT(X)  uintBitsToFloat(X)
+#define UINT_AS_TESSDATA(X)  X
+#define TESSDATA_AS_UINT(X)  X
+#endif
+
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 // This is a macro because we can't (at least for now) forward texture refs to a
@@ -175,19 +191,12 @@ INLINE half4 premultiply(half4 color)
     return make_half4(color.xyz * color.w, color.w);
 }
 
-INLINE half4 unmultiply(half4 color)
+INLINE half3 unmultiply_rgb(half4 premul)
 {
-    if (.0 < color.w && color.w < 1.)
-    {
-        color.xyz *= 1. / color.w;
-        // Since multiplying by the reciprocal isn't exact, and to handle
-        // invalid premultiplied data, take extra steps to ensure
-        // color * 1/alpha == 1 when color >= alpha.
-        color.xyz = mix(color.xyz,
-                        make_half3(1.),
-                        greaterThan(color.xyz, make_half3(254.5 / 255.)));
-    }
-    return color;
+    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
+    // also be approximate here. The blend modes that depend on this exact level
+    // of precision (colordodge and colorburn) account for it with dstPremul.
+    return premul.xyz * (premul.w != .0 ? 1. / premul.w : .0);
 }
 
 INLINE half min_value(half4 min4)

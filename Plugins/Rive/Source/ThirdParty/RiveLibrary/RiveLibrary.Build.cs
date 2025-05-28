@@ -147,6 +147,7 @@ public class RiveLibrary : ModuleRules
 	                    detail.GetLibPath("libwebp"),
 	                    detail.GetLibPath("libpng"),
 	                    detail.GetLibPath("libjpeg"),
+                            detail.GetLibPath("miniaudio"),
 	           });
 	        }
 	        else
@@ -156,6 +157,7 @@ public class RiveLibrary : ModuleRules
 	                    detail.GetLibPath("rive_libwebp"),
 	                    detail.GetLibPath("rive_libpng"),
 	                    detail.GetLibPath("rive_libjpeg"),
+                            detail.GetLibPath("rive_miniaudio"),
 	           });
 	        }
 

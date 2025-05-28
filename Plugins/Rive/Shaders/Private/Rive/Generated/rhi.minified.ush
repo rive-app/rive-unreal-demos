@@ -52,19 +52,19 @@ typedef float3 packed_float3;
 
 #ifdef ENABLE_MIN_16_PRECISION
 
-#if COMPILER_HLSL || COMPILER_VULKAN
+#if NEEDS_USHORT_DEFINE
 
 typedef min16uint ushort;
 
-#endif // COMPILER_HLSL
+#endif // NEEDS_USHORT_DEFINE
 
 #else
 
-#if COMPILER_HLSL || COMPILER_VULKAN
+#if NEEDS_USHORT_DEFINE
 
 typedef uint ushort;
 
-#endif // COMPILER_HLSL
+#endif // NEEDS_USHORT_DEFINE
 
 #endif // ENABLE_MIN_16_PRECISION
 
@@ -171,6 +171,7 @@ typedef uint ushort;
 #else
 #define PLS_DECL4F(IDX, NAME)  uniform PLS_TEX2D<uint> NAME
 #endif
+#define PLS_DECL4F_READONLY  PLS_DECL4F
 #define PLS_DECLUI(IDX, NAME)  uniform PLS_TEX2D<uint> NAME
 #define PLS_DECLUI_ATOMIC  PLS_DECLUI
 #define PLS_LOADUI_ATOMIC  PLS_LOADUI
@@ -293,6 +294,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define floatBitsToInt  asint
 #define floatBitsToUint  asuint
 #define inversesqrt  rsqrt
+#define equal(A, B)  ((A) == (B))
 #define notEqual(A, B)  ((A) != (B))
 #define lessThanEqual(A, B)  ((A) <= (B))
 #define lessThan(A, B)  ((A) < (B))
